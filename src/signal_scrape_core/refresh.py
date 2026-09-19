@@ -55,6 +55,10 @@ def diff_profile(previous: dict[str, Any], current: dict[str, Any]) -> list[dict
         # A failed refetch is not evidence that the previous value vanished.
         # Preserve the last supported value and report the observation failure.
         if record.get("status") in _FAILED_REFETCH_STATUSES:
+            # If no supported value existed before, a repeated failure has not
+            # erased anything and should remain an idempotent no-op.
+            if old_value is None:
+                continue
             module = field.split(".", 1)[0]
             if module not in seen_failed_modules:
                 seen_failed_modules.add(module)
