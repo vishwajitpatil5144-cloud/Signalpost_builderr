@@ -188,7 +188,40 @@ Open `out/showcase.html` locally — searchable index, per-company profile
 view, and the evidence-bounded research-agent widget, all reading directly
 from your generated JSONL (no server, no API key).
 
-## Step 11 — Run the local competition checks
+## Step 11 — Export the submission envelopes
+
+The pipeline keeps its internal `out/envelopes.jsonl` shape separate from the
+submission contract. Export the contract-facing file after discovery and before
+submission:
+
+```bash
+uv run python scripts/export_terminal_envelopes.py \
+  --input out/profiles-with-discovery.jsonl \
+  --output out/terminal-envelopes.jsonl \
+  --run-id local-001
+```
+
+For a refresh rerun, add `--previous` with the prior profile JSONL. The
+exporter then computes the tracked-field diff and carries the resulting
+evidence-backed events into each envelope's `changes[]` array:
+
+```bash
+uv run python scripts/export_terminal_envelopes.py \
+  --input out/profiles-with-discovery-rerun.jsonl \
+  --previous out/profiles-with-discovery.jsonl \
+  --output out/terminal-envelopes-rerun.jsonl \
+  --run-id rerun-001
+```
+
+The exporter translates internal statuses into the six contract states and
+marks fetched but identity-unverified websites as `ambiguous`, not
+`available`. This distinction prevents a plausible wrong-company match from
+being published as a confirmed company website.
+
+On Windows, use `run_full_pipeline.ps1` for the same five stages. The existing
+`.sh` launcher remains available for Git Bash and other POSIX-compatible shells.
+
+## Step 12 — Run the local competition checks
 
 ```bash
 uv run --with pytest pytest -q
@@ -197,12 +230,12 @@ npm run check:signalpost 2>/dev/null || true
 (The `npm run` checks are Builderr's own harness scripts if present in your
 environment; they're optional locally but worth running before you submit.)
 
-## Step 12 — Submit
+## Step 13 — Submit
 
 Email `submit@builderr.ai` with:
 - your repository URL and exact commit hash
-- `out/envelopes.jsonl` profile count (must be ≥1,000) and `out/entry-companies.jsonl` as the manifest
-- one run command (Step 8 as a single script — see `run_full_pipeline.sh`)
+- `out/terminal-envelopes.jsonl` profile count (must be ≥1,000) and `out/entry-companies.jsonl` as the manifest
+- one run command (Step 8 plus Step 11 as a single script — see `run_full_pipeline.ps1` or `run_full_pipeline.sh`)
 - declared models/APIs: **none** — registry APIs, direct HTTP fetches, and local deterministic code only
 - expected cost per 100-company batch: **$0**
 

@@ -8,6 +8,7 @@ from typing import Iterable
 try:
     import resource
 except ModuleNotFoundError:
+    # Windows does not provide resource; keep telemetry optional there.
     resource = None
 
 

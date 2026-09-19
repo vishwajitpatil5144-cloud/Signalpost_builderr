@@ -19,7 +19,7 @@ RUN_ID="${4:?run id required}"
 OUT_DIR="out"
 mkdir -p "$OUT_DIR"
 
-echo "== [1/4] Registry + registry-website batch =="
+echo "== [1/5] Registry + registry-website batch =="
 uv run python scripts/run_competition_batch.py \
   --organisations "$ORGANISATIONS" \
   --bulk "$BULK" \
@@ -29,26 +29,35 @@ uv run python scripts/run_competition_batch.py \
   --run-id "$RUN_ID" \
   --expected-count "$EXPECTED_COUNT"
 
-echo "== [2/4] Free ($0, no API key) website discovery for the rest =="
+echo "== [2/5] Free ($0, no API key) website discovery for the rest =="
 uv run python scripts/run_free_domain_discovery.py \
   --input "$OUT_DIR/profiles.jsonl" \
   --output "$OUT_DIR/profiles-with-discovery.jsonl" \
   --report "$OUT_DIR/discovery-report.json" \
   --promote-verified
 
-echo "== [3/4] Deterministic, $0 decision-useful synthesis =="
+echo "== [3/5] Deterministic, $0 decision-useful synthesis =="
 uv run python scripts/generate_synthesis.py \
   --input "$OUT_DIR/profiles-with-discovery.jsonl" \
   --output "$OUT_DIR/synthesis.jsonl"
 
-echo "== [4/4] Browsable showcase site =="
+echo "== [4/5] Browsable showcase site =="
 uv run python scripts/build_prototype.py \
   --input "$OUT_DIR/envelopes.jsonl" \
   --output "$OUT_DIR/showcase.html" || echo "(showcase build skipped/failed — check scripts/build_prototype.py --help)"
 
+# Keep this translation step separate from the internal envelope output: the
+# terminal-envelope file is the contract-facing artifact used for submission.
+echo "== [5/5] Export contract-compliant terminal envelopes =="
+uv run python scripts/export_terminal_envelopes.py \
+  --input "$OUT_DIR/profiles-with-discovery.jsonl" \
+  --output "$OUT_DIR/terminal-envelopes.jsonl" \
+  --run-id "$RUN_ID"
+
 echo
 echo "Done. Key outputs:"
-echo "  $OUT_DIR/envelopes.jsonl            (terminal envelopes — submission artifact)"
+echo "  $OUT_DIR/terminal-envelopes.jsonl   (submission artifact)"
+echo "  $OUT_DIR/envelopes.jsonl            (internal envelope shape)"
 echo "  $OUT_DIR/profiles-with-discovery.jsonl"
 echo "  $OUT_DIR/synthesis.jsonl            (decision-useful summaries)"
 echo "  $OUT_DIR/showcase.html              (browsable UI)"

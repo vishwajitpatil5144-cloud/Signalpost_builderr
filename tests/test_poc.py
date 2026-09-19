@@ -32,6 +32,7 @@ from signal_scrape_core.batch import evidence_terminal_state, profile_complete_f
 from signal_scrape_core.snapshots import SnapshotFetcher  # noqa: E402
 from bs4 import BeautifulSoup  # noqa: E402
 from scripts.build_prototype import compact as compact_prototype, qualification_copy  # noqa: E402
+from scripts.export_terminal_envelopes import build_envelope  # noqa: E402
 from scripts.run_brave_discovery import brave_search  # noqa: E402
 from scripts.run_annual_report_workforce_connector import extract_candidate, needs_ocr  # noqa: E402
 from scripts.normalize_google_maps_results import candidate_score  # noqa: E402
@@ -80,6 +81,65 @@ class EvidenceTests(unittest.TestCase):
         record = evidence("history", "not_fetched", "official", "https://example.test", note="No filing flag in snapshot")
         self.assertEqual(record["status"], "not_fetched")
         self.assertNotEqual(record["status"], "not_applicable")
+
+
+class TerminalEnvelopeExportTests(unittest.TestCase):
+    def base_row(self):
+        return {
+            "organisation_number": "123456789",
+            "name": "Example AS",
+            "form": "AS",
+            "municipality": "Oslo",
+            "industryCode": "62.010",
+            "employees": 3,
+            "registry": {"source": "https://registry.example/entity/123456789", "retrievedAt": "2026-09-19T00:00:00Z"},
+            "web": {"status": "not_found"},
+            "financial": {"status": "not_found"},
+            "roles": {"status": "not_found"},
+            "locations": {"status": "not_found"},
+            "changes": [{"field": "web", "kind": "changed"}],
+        }
+
+    def test_unverified_website_is_ambiguous_and_changes_are_preserved(self):
+        row = self.base_row()
+        row["web"] = {
+            "status": "available",
+            "source": "https://candidate.example",
+            "value": {
+                "requested_url": "https://candidate.example",
+                "title": "Identity not verified",
+            },
+        }
+        envelope = build_envelope(row, "rerun-001")
+        website_claim = next(item for item in envelope["claims"] if item["field"] == "official_website")
+        self.assertEqual(website_claim["availability"], "ambiguous")
+        self.assertEqual(envelope["changes"], row["changes"])
+        self.assertEqual(envelope["run"]["run_id"], "rerun-001")
+
+    def test_internal_statuses_are_translated_to_contract_states(self):
+        envelope = build_envelope(self.base_row(), "run-001")
+        claims_by_field = {item["field"]: item for item in envelope["claims"]}
+        self.assertEqual(claims_by_field["official_website"]["availability"], "not_available")
+        self.assertEqual(claims_by_field["revenue"]["availability"], "not_available")
+        self.assertTrue(all(item["availability"] in {"available", "not_available", "blocked", "not_applicable", "ambiguous", "failed"} for item in envelope["claims"]))
+
+    def test_live_evidence_records_populate_contract_and_operations(self):
+        row = self.base_row()
+        row.pop("registry")
+        row.pop("web")
+        row["evidence"] = {
+            "registry_live": {"status": "available", "source_url": "https://registry.example", "retrieved_at": "2026-09-19T00:00:00Z", "value": {}},
+            "website": {"status": "available", "source_url": "https://example.test", "retrieved_at": "2026-09-19T00:00:00Z", "content_sha256": "b" * 64, "value": {"final_url": "https://example.test", "title": "Example"}},
+            "financials": {"status": "not_found"},
+            "roles": {"status": "not_found"},
+            "locations": {"status": "not_found"},
+        }
+        row["run_metrics"] = {"requests": 4, "latencies_ms": [10, 20]}
+        envelope = build_envelope(row, "run-001")
+        website_claim = next(item for item in envelope["claims"] if item["field"] == "official_website")
+        self.assertEqual(website_claim["availability"], "available")
+        self.assertEqual(envelope["operations"]["requests"], 4)
+        self.assertEqual(envelope["operations"]["runtime_ms"], 30)
 
 
 class ExternalFootprintTests(unittest.TestCase):
