@@ -117,15 +117,19 @@ def build_summary(row: dict[str, Any], refresh_events: list[dict[str, Any]] | No
 
     roles = _active_roles(row)
     if roles:
+        seen_names: set[str] = set()
         named = []
-        for item in roles[:3]:
+        for item in roles:
             value = item.get("name")
             if isinstance(value, list):
                 value = " ".join(str(part) for part in value if part)
             elif value is not None and not isinstance(value, str):
                 value = str(value)
-            if value:
+            if value and value not in seen_names:
+                seen_names.add(value)
                 named.append(value)
+            if len(named) >= 3:
+                break
         if named:
             sentences.append(f"Registered leadership includes {', '.join(named)}.")
     else:
@@ -135,13 +139,14 @@ def build_summary(row: dict[str, Any], refresh_events: list[dict[str, Any]] | No
     if latest:
         revenue = _fmt_amount(latest.get("revenue"))
         result = _fmt_amount(latest.get("annual_result"))
-        period = latest.get("period")
+        period = latest.get("period") or {}
+        period_label = f"{period.get('fraDato', '?')} to {period.get('tilDato', '?')}"
         pieces = [p for p in (
             f"revenue of {revenue}" if revenue else None,
             f"an annual result of {result}" if result else None,
         ) if p]
         if pieces:
-            sentences.append(f"Its latest filed accounts ({period}) show {' and '.join(pieces)}.")
+            sentences.append(f"Its latest filed accounts ({period_label}) show {' and '.join(pieces)}.")
     else:
         unknowns.append("No normalized annual-account record was available; this is not interpreted as zero revenue.")
 

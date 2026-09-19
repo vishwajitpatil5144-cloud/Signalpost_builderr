@@ -1281,6 +1281,24 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(change["new_value"], 0)
         self.assertEqual(change["source_url"], "https://example.test/entity")
 
+    def test_failed_refetch_preserves_last_value_and_reports_observation_failure(self):
+        previous = {
+            "organisation_number": "923609016",
+            "evidence": {
+                "website": evidence("website", "available", "company_site", "https://example.test", value={"title": "Example"}),
+            },
+        }
+        current = {
+            "organisation_number": "923609016",
+            "evidence": {
+                "website": evidence("website", "source_error", "company_site", "https://example.test"),
+            },
+        }
+        changes = diff_profile(previous, current)
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0]["old_value"], changes[0]["new_value"])
+        self.assertEqual(changes[0]["status"], "refresh_check_failed")
+
     def test_refresh_rejects_membership_or_identity_drift(self):
         with self.assertRaises(ValueError):
             diff_datasets([{"organisation_number": "923609016"}], [{"organisation_number": "999999999"}])

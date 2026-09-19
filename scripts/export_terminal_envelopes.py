@@ -220,6 +220,24 @@ def build_envelope(
         mapped = _map_status(locations.get("status"))
         claim("operating_locations", [], mapped if locations.get("status") != "available" else "not_available", 0.0, locations.get("source"), "official_subunits", locations.get("retrievedAt"), locations.get("hash"))
 
+    group = _canonical_record(records.get("group"))
+    children = group["value"].get("children") or []
+    if group.get("status") == "available" and children:
+        claim(
+            "group_structure",
+            [child.get("navn") for child in children if child.get("navn")],
+            "available",
+            0.95,
+            group.get("source"),
+            group.get("source_class") or "official_group_structure",
+            group.get("retrievedAt"),
+            group.get("hash"),
+            note=f"{len(children)} related entity/entities from the official group-structure register.",
+        )
+    else:
+        mapped = _map_status(group.get("status"))
+        claim("group_structure", [], mapped if group.get("status") != "available" else "not_available", 0.0, group.get("source"), "official_group_structure", group.get("retrievedAt"), group.get("hash"))
+
     metrics = row.get("run_metrics") or {}
     ops = per_company_ops or {
         "requests": metrics.get("requests", 0),
@@ -264,6 +282,7 @@ def main() -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     invalid = 0
     ambiguous_count = 0
+    empty_claim_envelopes = 0
     with output.open("w", encoding="utf-8", newline="\n") as handle:
         for row in rows:
             envelope = build_envelope(row, args.run_id, changes=changes_by_org.get(row.get("organisation_number")))
@@ -271,10 +290,14 @@ def main() -> None:
                 if item["availability"] not in _VALID_STATES:
                     invalid += 1
                 ambiguous_count += item["availability"] == "ambiguous"
+            if not any(item["availability"] == "available" for item in envelope["claims"]):
+                empty_claim_envelopes += 1
             handle.write(json.dumps(envelope, ensure_ascii=False, separators=(",", ":")) + "\n")
 
     print(f"Wrote {len(rows)} terminal envelopes to {output}")
     print(f"Ambiguous claims (fetched but not identity-verified): {ambiguous_count}")
+    if empty_claim_envelopes:
+        print(f"WARNING: {empty_claim_envelopes} envelope(s) had zero available claims -- check input schema.")
     if invalid:
         raise SystemExit(f"FAIL: {invalid} claims used an invalid availability state")
 

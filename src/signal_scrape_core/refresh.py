@@ -36,19 +36,46 @@ def _evidence_for(profile: dict[str, Any], field: str) -> dict[str, Any]:
     return records.get(module, {})
 
 
+_FAILED_REFETCH_STATUSES = {"source_error", "blocked", "not_fetched"}
+
+
 def diff_profile(previous: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
     old_org = previous.get("organisation_number")
     new_org = current.get("organisation_number")
     if not old_org or old_org != new_org:
         raise ValueError("Refresh comparison requires the same exact organisation number")
     changes = []
+    seen_failed_modules: set[str] = set()
     for field, path in TRACKED_FIELDS.items():
         old_value = _read(previous, path)
         new_value = _read(current, path)
-        if old_value == new_value:
-            continue
         record = _evidence_for(current, field)
         previous_record = _evidence_for(previous, field)
+
+        # A failed refetch is not evidence that the previous value vanished.
+        # Preserve the last supported value and report the observation failure.
+        if record.get("status") in _FAILED_REFETCH_STATUSES:
+            module = field.split(".", 1)[0]
+            if module not in seen_failed_modules:
+                seen_failed_modules.add(module)
+                changes.append({
+                    "organisation_number": new_org,
+                    "field": field,
+                    "old_value": old_value,
+                    "new_value": old_value,
+                    "source_url": record.get("source_url"),
+                    "retrieved_at": record.get("retrieved_at"),
+                    "effective_at": record.get("effective_at") or record.get("as_of"),
+                    "source_class": record.get("source_class") or record.get("source_type"),
+                    "old_content_sha256": previous_record.get("content_sha256"),
+                    "new_content_sha256": previous_record.get("content_sha256"),
+                    "status": "refresh_check_failed",
+                    "note": f"This cycle's {module} refetch did not complete ({record.get('status')}); last known value retained rather than reported as changed.",
+                })
+            continue
+
+        if old_value == new_value:
+            continue
         changes.append({
             "organisation_number": new_org,
             "field": field,
