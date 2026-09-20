@@ -258,7 +258,7 @@ def _extraction_state(text: str, soup: BeautifulSoup) -> str:
     return "js_fallback_candidate" if len(text.strip()) < 100 and len(soup.select("script[src]")) >= 2 else "static_complete"
 
 
-def fetch_website(url: str | None, *, timeout: float = 15.0, max_bytes: int = 2_000_000) -> tuple[dict[str, Any], dict[str, Any]]:
+def fetch_website(url: str | None, *, timeout: float = 15.0, max_bytes: int = 2_000_000, retries: int = 2) -> tuple[dict[str, Any], dict[str, Any]]:
     supplied_url = str(url or "").strip()
     supplied_scheme = bool(re.match(r"^https?://", supplied_url, re.I))
     normalized = normalize_homepage(url)
@@ -331,17 +331,36 @@ def fetch_website(url: str | None, *, timeout: float = 15.0, max_bytes: int = 2_
         return evidence("website", "available", "registry_linked_company_website", final_url, value=value, note="Company-controlled claim layer; not an official registry fact", content_sha256=value["content_sha256"]), {"requests": requests, "bytes": bytes_received, "latencies_ms": page_latencies}
     except urllib.error.HTTPError as exc:
         elapsed = int((time.monotonic() - started) * 1000)
-        status = "not_found" if exc.code in {404, 410} else "source_error"
-        return evidence("website", status, "registry_linked_company_website", normalized, note=f"HTTP {exc.code}"), {"requests": 2, "bytes": 0, "latencies_ms": [elapsed]}
+        if exc.code in {404, 410}:
+            return evidence("website", "not_found", "registry_linked_company_website", normalized, note=f"HTTP {exc.code}"), {"requests": 2, "bytes": 0, "latencies_ms": [elapsed]}
+        if retries > 0 and exc.code >= 500:
+            time.sleep(0.6)
+            record, metrics = fetch_website(url, timeout=timeout, max_bytes=max_bytes, retries=retries - 1)
+            metrics["requests"] += 2
+            metrics["latencies_ms"].insert(0, elapsed)
+            return record, metrics
+        return evidence("website", "source_error", "registry_linked_company_website", normalized, note=f"HTTP {exc.code}"), {"requests": 2, "bytes": 0, "latencies_ms": [elapsed]}
     except urllib.error.URLError as exc:
         if not supplied_scheme and normalized.startswith("https://"):
             first_elapsed = int((time.monotonic() - started) * 1000)
-            record, metrics = fetch_website("http://" + supplied_url, timeout=timeout, max_bytes=max_bytes)
+            record, metrics = fetch_website("http://" + supplied_url, timeout=timeout, max_bytes=max_bytes, retries=retries)
             metrics["requests"] += 2
             metrics["latencies_ms"].insert(0, first_elapsed)
             return record, metrics
         elapsed = int((time.monotonic() - started) * 1000)
+        if retries > 0:
+            time.sleep(0.6)
+            record, metrics = fetch_website(url, timeout=timeout, max_bytes=max_bytes, retries=retries - 1)
+            metrics["requests"] += 2
+            metrics["latencies_ms"].insert(0, elapsed)
+            return record, metrics
         return evidence("website", "source_error", "registry_linked_company_website", normalized, note=f"URLError: {str(exc.reason)[:180]}"), {"requests": 2, "bytes": 0, "latencies_ms": [elapsed]}
     except Exception as exc:
         elapsed = int((time.monotonic() - started) * 1000)
+        if retries > 0:
+            time.sleep(0.6)
+            record, metrics = fetch_website(url, timeout=timeout, max_bytes=max_bytes, retries=retries - 1)
+            metrics["requests"] += 2
+            metrics["latencies_ms"].insert(0, elapsed)
+            return record, metrics
         return evidence("website", "source_error", "registry_linked_company_website", normalized, note=f"{type(exc).__name__}: {str(exc)[:180]}"), {"requests": 2, "bytes": 0, "latencies_ms": [elapsed]}
