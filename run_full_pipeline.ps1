@@ -55,6 +55,10 @@ uv run python scripts/run_nominatim_connector.py `
     --profiles "$outDir/profiles-with-discovery.jsonl" `
     --output "$outDir/nominatim.jsonl" `
     --report "$outDir/nominatim-report.json"
+uv run python scripts/run_nav_arbeidsplassen_connector.py `
+    --profiles "$outDir/profiles-with-discovery.jsonl" `
+    --output "$outDir/nav.jsonl" `
+    --report "$outDir/nav-report.json"
 
 Write-Host "== [4/6] Deterministic synthesis =="
 uv run python scripts/generate_synthesis.py `
@@ -64,7 +68,8 @@ uv run python scripts/generate_synthesis.py `
     --news "$outDir/news.jsonl" `
     --hiring "$outDir/hiring.jsonl" `
     --wikidata "$outDir/wikidata.jsonl" `
-    --nominatim "$outDir/nominatim.jsonl"
+    --nominatim "$outDir/nominatim.jsonl" `
+    --nav "$outDir/nav.jsonl"
 
 Write-Host "== [5/6] Browsable showcase site =="
 try {
@@ -88,7 +93,8 @@ uv run python scripts/export_terminal_envelopes.py `
     --news "$outDir/news.jsonl" `
     --hiring "$outDir/hiring.jsonl" `
     --wikidata "$outDir/wikidata.jsonl" `
-    --nominatim "$outDir/nominatim.jsonl"
+    --nominatim "$outDir/nominatim.jsonl" `
+    --nav "$outDir/nav.jsonl"
 
 Write-Host ""
 Write-Host "Done. Key outputs:"

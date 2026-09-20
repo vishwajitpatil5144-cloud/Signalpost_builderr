@@ -50,7 +50,7 @@ from scripts.experimental_restricted.run_linkedin_guest_experiment import (  # n
     extract_profile as extract_linkedin_profile,
     legal_name_profile_url,
 )
-from scripts.run_fagfolkguiden_reviews_connector import extract_aggregate_rating, slug  # noqa: E402
+from scripts.experimental_restricted.run_fagfolkguiden_reviews_connector import extract_aggregate_rating, slug  # noqa: E402
 from scripts.experimental_restricted.discover_linkedin_company_profiles import (  # noqa: E402
     discovery_identity as linkedin_discovery_identity,
     normalized_full_name as linkedin_normalized_full_name,
@@ -1693,5 +1693,119 @@ class VerifiedSiteSeedTests(unittest.TestCase):
         self.assertIn("Wikidata &amp; Wikipedia identity", html_out)
 
 
+class NAVArbeidsplassenConnectorTests(unittest.TestCase):
+    def test_clean_name_normalizes_legal_suffixes(self):
+        from scripts.run_nav_arbeidsplassen_connector import _clean_name
+
+        self.assertEqual(_clean_name("Acme Software AS"), "acme software")
+        self.assertEqual(_clean_name("Fjord Fiskeri ASA"), "fjord fiskeri")
+        self.assertEqual(_clean_name("Bergen Elektro"), "bergen elektro")
+
+    def test_match_vacancies_exact_name_and_municipality(self):
+        from scripts.run_nav_arbeidsplassen_connector import match_vacancies
+        from signal_scrape_core.external_footprint import validate_observation
+
+        profiles = [
+            {
+                "organisation_number": "987654321",
+                "name": "Nordic Data Solutions AS",
+                "municipality": "OSLO",
+            }
+        ]
+        feed_items = [
+            {
+                "id": "uuid-1234",
+                "title": "Senior Cloud Engineer",
+                "content_text": "Stillingsannonse",
+                "date_modified": "2026-09-18T10:00:00Z",
+                "_feed_entry": {
+                    "uuid": "uuid-1234",
+                    "status": "ACTIVE",
+                    "title": "Senior Cloud Engineer",
+                    "businessName": "Nordic Data Solutions AS",
+                    "municipal": "OSLO",
+                    "sistEndret": "2026-09-18T10:00:00Z",
+                },
+            }
+        ]
+        observations = match_vacancies(profiles, feed_items)
+        self.assertEqual(len(observations), 1)
+        obs = observations[0]
+        self.assertEqual(obs["organisation_number"], "987654321")
+        self.assertEqual(obs["platform"], "job_board")
+        self.assertEqual(obs["signal_type"], "job_posting")
+        self.assertEqual(obs["acquisition_mode"], "official_api")
+        self.assertEqual(obs["rights_status"], "approved")
+        self.assertIn("Senior Cloud Engineer", obs["evidence_span"])
+        self.assertEqual(validate_observation(obs), [])
+
+    def test_match_vacancies_rejects_municipality_mismatch(self):
+        from scripts.run_nav_arbeidsplassen_connector import match_vacancies
+
+        profiles = [
+            {
+                "organisation_number": "987654321",
+                "name": "Nordic Data Solutions AS",
+                "municipality": "BERGEN",
+            }
+        ]
+        feed_items = [
+            {
+                "id": "uuid-1234",
+                "_feed_entry": {
+                    "uuid": "uuid-1234",
+                    "status": "ACTIVE",
+                    "title": "Senior Cloud Engineer",
+                    "businessName": "Nordic Data Solutions AS",
+                    "municipal": "TROMSØ",
+                },
+            }
+        ]
+        observations = match_vacancies(profiles, feed_items)
+        self.assertEqual(len(observations), 0)
+
+    def test_export_terminal_envelopes_with_nav_jobs(self):
+        from scripts.export_terminal_envelopes import build_envelope
+
+        row = {
+            "organisation_number": "987654321",
+            "evidence": {
+                "registry_live": {
+                    "source_url": "https://data.brreg.no/enhetsregisteret/api/enheter/987654321",
+                    "retrieved_at": "2026-09-19T05:00:00Z",
+                    "content_sha256": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+                    "status": "available",
+                    "value": {
+                        "name": "Nordic Data Solutions AS",
+                        "legal_form": "AS",
+                    },
+                }
+            },
+            "_has_nav_input": True,
+            "_nav_observation": {
+                "source_url": "https://arbeidsplassen.nav.no/stillinger/stilling/uuid-1234",
+                "retrieved_at": "2026-09-20T10:00:00Z",
+                "content_sha256": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "evidence_span": "NAV vacancy 'Senior Cloud Engineer'",
+                "metrics": {
+                    "job_title": "Senior Cloud Engineer",
+                    "status": "ACTIVE",
+                    "municipal": "OSLO",
+                    "date_modified": "2026-09-18T10:00:00Z",
+                },
+            },
+        }
+        env = build_envelope(row, "test-run-nav")
+        claims_by_field = {c["field"]: c for c in env["claims"]}
+        self.assertIn("job_postings", claims_by_field)
+        job_claim = claims_by_field["job_postings"]
+        self.assertEqual(job_claim["availability"], "available")
+        self.assertEqual(job_claim["value"]["job_title"], "Senior Cloud Engineer")
+        ev = next(e for e in env["evidence"] if e["id"] in job_claim["evidence_ids"])
+        self.assertEqual(ev["source_url"], "https://arbeidsplassen.nav.no/stillinger/stilling/uuid-1234")
+
+
 if __name__ == "__main__":
     unittest.main()
+
+

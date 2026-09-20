@@ -350,6 +350,40 @@ def build_envelope(
             note="No verified OpenStreetMap place match for registered business address.",
         )
 
+    nav = row.get("_nav_observation")
+    if nav:
+        nav_metrics = nav.get("metrics") or {}
+        claim(
+            "job_postings",
+            {
+                "platform": "job_board",
+                "source": "arbeidsplassen.nav.no",
+                "job_title": nav_metrics.get("job_title"),
+                "status": nav_metrics.get("status"),
+                "municipal": nav_metrics.get("municipal"),
+                "date_modified": nav_metrics.get("date_modified"),
+            },
+            "available",
+            0.95,
+            nav.get("source_url"),
+            "nav_official_job_board",
+            nav.get("retrieved_at"),
+            nav.get("content_sha256"),
+            note=f"Verified public job vacancy from NAV Arbeidsplassen: {str(nav.get('evidence_span') or '')[:200]}",
+        )
+    elif row.get("_has_nav_input"):
+        claim(
+            "job_postings",
+            None,
+            "not_available",
+            0.0,
+            "https://arbeidsplassen.nav.no/stillinger",
+            "nav_official_job_board",
+            registry_retrieved,
+            None,
+            note="No active NAV Arbeidsplassen job vacancies found for company name.",
+        )
+
     metrics = row.get("run_metrics") or {}
     ops = per_company_ops or {
         "requests": metrics.get("requests", 0),
@@ -386,6 +420,7 @@ def main() -> None:
     parser.add_argument("--hiring", help="hiring connector JSONL")
     parser.add_argument("--wikidata", help="wikidata connector JSONL")
     parser.add_argument("--nominatim", help="nominatim connector JSONL")
+    parser.add_argument("--nav", help="nav job vacancy connector JSONL")
     args = parser.parse_args()
 
     rows = read_jsonl(Path(args.input))
@@ -394,6 +429,7 @@ def main() -> None:
     hiring_by_org = _index_by_org(args.hiring)
     wikidata_by_org = _index_by_org(args.wikidata)
     nominatim_by_org = _index_by_org(args.nominatim)
+    nav_by_org = _index_by_org(args.nav)
     for row in rows:
         org = str(row.get("organisation_number"))
         if org in activity_by_org:
@@ -410,6 +446,10 @@ def main() -> None:
             row["_has_nominatim_input"] = True
             if org in nominatim_by_org:
                 row["_nominatim_observation"] = nominatim_by_org[org]
+        if bool(args.nav):
+            row["_has_nav_input"] = True
+            if org in nav_by_org:
+                row["_nav_observation"] = nav_by_org[org]
     changes_by_org: dict[str, list[dict[str, Any]]] = {}
     if args.previous:
         previous = read_jsonl(Path(args.previous))

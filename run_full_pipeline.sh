@@ -57,6 +57,10 @@ uv run python scripts/run_nominatim_connector.py \
   --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
   --output "$OUT_DIR/nominatim.jsonl" \
   --report "$OUT_DIR/nominatim-report.json"
+uv run python scripts/run_nav_arbeidsplassen_connector.py \
+  --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
+  --output "$OUT_DIR/nav.jsonl" \
+  --report "$OUT_DIR/nav-report.json"
 
 echo "== [4/6] Deterministic, $0 decision-useful synthesis =="
 uv run python scripts/generate_synthesis.py \
@@ -66,7 +70,8 @@ uv run python scripts/generate_synthesis.py \
   --news "$OUT_DIR/news.jsonl" \
   --hiring "$OUT_DIR/hiring.jsonl" \
   --wikidata "$OUT_DIR/wikidata.jsonl" \
-  --nominatim "$OUT_DIR/nominatim.jsonl"
+  --nominatim "$OUT_DIR/nominatim.jsonl" \
+  --nav "$OUT_DIR/nav.jsonl"
 
 echo "== [5/6] Browsable showcase site =="
 uv run python scripts/build_prototype.py \
@@ -83,7 +88,8 @@ uv run python scripts/export_terminal_envelopes.py \
   --news "$OUT_DIR/news.jsonl" \
   --hiring "$OUT_DIR/hiring.jsonl" \
   --wikidata "$OUT_DIR/wikidata.jsonl" \
-  --nominatim "$OUT_DIR/nominatim.jsonl"
+  --nominatim "$OUT_DIR/nominatim.jsonl" \
+  --nav "$OUT_DIR/nav.jsonl"
 
 echo
 echo "Done. Key outputs:"

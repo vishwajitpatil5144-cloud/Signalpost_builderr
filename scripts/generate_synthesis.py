@@ -211,6 +211,19 @@ def build_summary(row: dict[str, Any], refresh_events: list[dict[str, Any]] | No
         if hiring:
             sentences.append(f"It {hiring}.")
 
+    nav_obs = row.get("_nav_observation")
+    if nav_obs:
+        nav_metrics = nav_obs.get("metrics") or {}
+        job_t = nav_metrics.get("job_title") or "job opening"
+        muni = nav_metrics.get("municipal") or ""
+        muni_str = f" in {muni}" if muni else ""
+        sentences.append(f"Public job vacancy listed on NAV Arbeidsplassen: '{job_t}'{muni_str}.")
+        supporting_sources.append({
+            "claim": "job_postings",
+            "source_url": nav_obs.get("source_url"),
+            "retrieved_at": nav_obs.get("retrieved_at"),
+        })
+
     if refresh_events:
         relevant = [event for event in refresh_events if event.get("organisation_number") == org]
         if relevant:
@@ -250,6 +263,7 @@ def main() -> None:
     parser.add_argument("--hiring", help="Optional hiring connector JSONL")
     parser.add_argument("--wikidata", help="Optional wikidata connector JSONL")
     parser.add_argument("--nominatim", help="Optional nominatim connector JSONL")
+    parser.add_argument("--nav", help="Optional nav connector JSONL")
     args = parser.parse_args()
 
     rows = read_jsonl(Path(args.input))
@@ -258,6 +272,7 @@ def main() -> None:
     hiring_by_org = _index_by_org(args.hiring)
     wikidata_by_org = _index_by_org(args.wikidata)
     nominatim_by_org = _index_by_org(args.nominatim)
+    nav_by_org = _index_by_org(args.nav)
 
     for row in rows:
         org = str(row.get("organisation_number"))
@@ -271,6 +286,8 @@ def main() -> None:
             row["_wikidata_observation"] = wikidata_by_org[org]
         if org in nominatim_by_org:
             row["_nominatim_observation"] = nominatim_by_org[org]
+        if org in nav_by_org:
+            row["_nav_observation"] = nav_by_org[org]
 
     refresh_events = None
     if args.refresh_events:
