@@ -41,18 +41,33 @@ uv run python scripts/generate_synthesis.py \
   --input "$OUT_DIR/profiles-with-discovery.jsonl" \
   --output "$OUT_DIR/synthesis.jsonl"
 
-echo "== [4/5] Browsable showcase site =="
+echo "== [4/6] Browsable showcase site =="
 uv run python scripts/build_prototype.py \
   --input "$OUT_DIR/envelopes.jsonl" \
   --output "$OUT_DIR/showcase.html" || echo "(showcase build skipped/failed — check scripts/build_prototype.py --help)"
 
-# Keep this translation step separate from the internal envelope output: the
-# terminal-envelope file is the contract-facing artifact used for submission.
-echo "== [5/5] Export contract-compliant terminal envelopes =="
+echo "== [5/6] Public activity, news, and hiring-signal connectors =="
+uv run python scripts/extract_company_site_activity.py \
+  --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
+  --output "$OUT_DIR/activity.jsonl" \
+  --report "$OUT_DIR/activity-report.json"
+uv run python scripts/extract_company_site_news.py \
+  --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
+  --output "$OUT_DIR/news.jsonl" \
+  --report "$OUT_DIR/news-report.json"
+uv run python scripts/extract_company_hiring_signal.py \
+  --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
+  --output "$OUT_DIR/hiring.jsonl" \
+  --report "$OUT_DIR/hiring-report.json"
+
+echo "== [6/6] Export contract-compliant terminal envelopes =="
 uv run python scripts/export_terminal_envelopes.py \
   --input "$OUT_DIR/profiles-with-discovery.jsonl" \
   --output "$OUT_DIR/terminal-envelopes.jsonl" \
-  --run-id "$RUN_ID"
+  --run-id "$RUN_ID" \
+  --activity "$OUT_DIR/activity.jsonl" \
+  --news "$OUT_DIR/news.jsonl" \
+  --hiring "$OUT_DIR/hiring.jsonl"
 
 echo
 echo "Done. Key outputs:"

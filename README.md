@@ -218,6 +218,13 @@ marks fetched but identity-unverified websites as `ambiguous`, not
 `available`. This distinction prevents a plausible wrong-company match from
 being published as a confirmed company website.
 
+The pipeline also extracts two bounded company-site signals without new
+network requests: `public_activity` combines verified site-surface and
+company-news observations, while `hiring_signal` reports only that a verified
+careers/jobs page exists and whether hiring language was detected. It never
+asserts a job count. Career paths such as `/jobs`, `/karriere`, and
+`/stillinger` are included in the crawler's priority links.
+
 On Windows, use `run_full_pipeline.ps1` for the same five stages. The existing
 `.sh` launcher remains available for Git Bash and other POSIX-compatible shells.
 

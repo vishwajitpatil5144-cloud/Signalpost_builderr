@@ -39,6 +39,12 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def _index_by_org(path: str | None) -> dict[str, dict[str, Any]]:
+    if not path or not Path(path).exists():
+        return {}
+    return {str(item["organisation_number"]): item for item in read_jsonl(Path(path))}
+
+
 def _hash(*parts: Any) -> str:
     digest = hashlib.sha256()
     for part in parts:
@@ -238,6 +244,46 @@ def build_envelope(
         mapped = _map_status(group.get("status"))
         claim("group_structure", [], mapped if group.get("status") != "available" else "not_available", 0.0, group.get("source"), "official_group_structure", group.get("retrievedAt"), group.get("hash"))
 
+    activity = row.get("_activity_observation")
+    news = row.get("_news_observation")
+    if activity or news:
+        activity_metrics = (activity or {}).get("metrics", {})
+        note_parts = []
+        if activity:
+            note_parts.append(f"{activity_metrics.get('bounded_pages_captured', 0)} bounded pages, {activity_metrics.get('verified_social_links', 0)} verified social links")
+        if news:
+            note_parts.append(f"news/press page: {news.get('evidence_span', '')[:100]}")
+        source = news or activity
+        claim(
+            "public_activity",
+            {"site_completeness": bool(activity), "company_news_page_found": bool(news)},
+            "available",
+            0.85,
+            source.get("source_url"),
+            source.get("source_class") or "company_site",
+            source.get("retrieved_at"),
+            source.get("content_sha256"),
+            note="; ".join(note_parts) + " (company-owned activity only; not independent sentiment).",
+        )
+    else:
+        claim("public_activity", None, "not_available", 0.0, web.get("source"), "company_site", web.get("retrievedAt"), web.get("hash"), note="No verified company site activity signal found this run.")
+
+    hiring = row.get("_hiring_observation")
+    if hiring:
+        claim(
+            "hiring_signal",
+            {"career_page_found": True, "hiring_keywords_detected": hiring["metrics"]["hiring_keyword_detected"]},
+            "available",
+            0.8,
+            hiring.get("source_url"),
+            hiring.get("source_class") or "company_site",
+            hiring.get("retrieved_at"),
+            hiring.get("content_sha256"),
+            note="Career/jobs page found on the verified company site. Does not assert a specific number of open roles.",
+        )
+    else:
+        claim("hiring_signal", None, "not_available", 0.0, web.get("source"), "company_site", web.get("retrievedAt"), web.get("hash"), note="No careers/jobs page found on the verified company site this run.")
+
     metrics = row.get("run_metrics") or {}
     ops = per_company_ops or {
         "requests": metrics.get("requests", 0),
@@ -269,9 +315,23 @@ def main() -> None:
     parser.add_argument("--output", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--previous", help="previous profile JSONL used to populate changes[]")
+    parser.add_argument("--activity", help="activity connector JSONL")
+    parser.add_argument("--news", help="news connector JSONL")
+    parser.add_argument("--hiring", help="hiring connector JSONL")
     args = parser.parse_args()
 
     rows = read_jsonl(Path(args.input))
+    activity_by_org = _index_by_org(args.activity)
+    news_by_org = _index_by_org(args.news)
+    hiring_by_org = _index_by_org(args.hiring)
+    for row in rows:
+        org = str(row.get("organisation_number"))
+        if org in activity_by_org:
+            row["_activity_observation"] = activity_by_org[org]
+        if org in news_by_org:
+            row["_news_observation"] = news_by_org[org]
+        if org in hiring_by_org:
+            row["_hiring_observation"] = hiring_by_org[org]
     changes_by_org: dict[str, list[dict[str, Any]]] = {}
     if args.previous:
         previous = read_jsonl(Path(args.previous))

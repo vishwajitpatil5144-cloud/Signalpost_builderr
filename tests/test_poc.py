@@ -33,6 +33,7 @@ from signal_scrape_core.snapshots import SnapshotFetcher  # noqa: E402
 from bs4 import BeautifulSoup  # noqa: E402
 from scripts.build_prototype import compact as compact_prototype, qualification_copy  # noqa: E402
 from scripts.export_terminal_envelopes import build_envelope  # noqa: E402
+from scripts.extract_company_hiring_signal import observation as hiring_observation  # noqa: E402
 from scripts.run_brave_discovery import brave_search  # noqa: E402
 from scripts.run_annual_report_workforce_connector import extract_candidate, needs_ocr  # noqa: E402
 from scripts.normalize_google_maps_results import candidate_score  # noqa: E402
@@ -140,6 +141,19 @@ class TerminalEnvelopeExportTests(unittest.TestCase):
         self.assertEqual(website_claim["availability"], "available")
         self.assertEqual(envelope["operations"]["requests"], 4)
         self.assertEqual(envelope["operations"]["runtime_ms"], 30)
+
+    def test_hiring_signal_requires_verified_career_page_and_never_claims_count(self):
+        profile = {
+            "organisation_number": "123456789",
+            "evidence": {"website": {"status": "available", "retrieved_at": "2026-01-01T00:00:00Z", "value": {"identity_assessment": {"publishable": True, "score": 1.0}, "pages": [{"url": "https://example.test/careers", "title": "Careers", "main_text_excerpt": "Open position", "content_sha256": "a" * 64}]}}},
+        }
+        observation = hiring_observation(profile)
+        self.assertTrue(observation)
+        self.assertTrue(observation["metrics"]["hiring_keyword_detected"])
+        self.assertNotIn("job_count", observation["metrics"])
+
+        profile["evidence"]["website"]["value"]["identity_assessment"]["publishable"] = False
+        self.assertIsNone(hiring_observation(profile))
 
 
 class ExternalFootprintTests(unittest.TestCase):
