@@ -687,3 +687,38 @@ strictly conforming to AGENT_MISSION.md §0 rules:
    Created `scripts/audit_published_claims.py` for human review. Test suite
    expanded from 110 to 114 tests, all passing in 2.9 seconds. Total requests:
    1,012 / 2,000 budget, $0 cost.
+
+## 20. v7 deterministic synthesis & showcase UX enhancement (20 September 2026)
+
+V7 completes the integration of external signals into decision-useful synthesis
+and the browsable showcase UX:
+
+1. **Deterministic synthesis quality pass (`scripts/generate_synthesis.py`)**:
+   Updated `generate_synthesis.py` to accept `--activity`, `--news`, `--hiring`,
+   `--wikidata`, and `--nominatim`. Folds real physical locations (OSM coordinates),
+   Wikidata descriptions, site activity metrics (bounded page count, verified
+   social link count), and careers/jobs page presence honestly into the
+   generated summaries without hallucination or unsupported claims.
+
+2. **Pipeline re-ordering (`run_full_pipeline.ps1`, `run_full_pipeline.sh`)**:
+   Re-ordered pipeline stages so external connectors run as step 3, deterministic
+   synthesis runs as step 4 (consuming external observations), browsable showcase
+   site builds as step 5, and terminal envelope export runs as step 6. Both shell
+   scripts pass external observations to `build_prototype.py`.
+
+3. **Showcase UX upgrades (`scripts/build_prototype.py`)**:
+   - Ingests external observations for OpenStreetMap and Wikidata in `compact()`.
+   - Surfaces OSM verified locations with coordinates and OSM links under
+     operating locations.
+   - Surfaces Wikidata entities with QID, description, Wikipedia links, and
+     global sitelinks.
+   - Updated stats bar displaying counts for OSM verified locations and Wikidata
+     entities.
+   - Enhanced Research Agent Q&A logic to answer questions about map/coordinates
+     and Wikidata/Wikipedia with verified links and evidence citations.
+
+4. **Test suite & verification**:
+   Added unit tests for deterministic synthesis with external footprints and
+   showcase prototype compact/build with external signals. Test suite expanded
+   to 116 passing tests. All 100 terminal envelopes validated with zero dangling
+   references and zero invalid claim states. Cost remains $0.00.

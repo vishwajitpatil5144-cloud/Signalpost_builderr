@@ -150,9 +150,66 @@ def build_summary(row: dict[str, Any], refresh_events: list[dict[str, Any]] | No
     else:
         unknowns.append("No normalized annual-account record was available; this is not interpreted as zero revenue.")
 
-    hiring = _hiring_signal(row)
-    if hiring:
-        sentences.append(f"It {hiring}.")
+    # Location cross-verification from OpenStreetMap / Nominatim
+    nom = row.get("_nominatim_observation")
+    if nom:
+        nom_metrics = nom.get("metrics") or {}
+        lat = nom_metrics.get("latitude")
+        lon = nom_metrics.get("longitude")
+        if lat and lon:
+            sentences.append(f"Its registered business location is independently cross-verified via OpenStreetMap ({lat:.4f}, {lon:.4f}).")
+            supporting_sources.append({
+                "claim": "place_summary",
+                "source_url": nom.get("source_url"),
+                "retrieved_at": nom.get("retrieved_at"),
+            })
+
+    # External company profile from Wikidata
+    wiki = row.get("_wikidata_observation")
+    if wiki:
+        desc = wiki.get("wikidata_description")
+        inception = wiki.get("wikidata_inception")
+        bits = []
+        if desc:
+            bits.append(desc)
+        if inception:
+            bits.append(f"inception {str(inception)[:4]}")
+        if bits:
+            sentences.append(f"Wikidata records it as: {'; '.join(bits)}.")
+            supporting_sources.append({
+                "claim": "company_profile",
+                "source_url": wiki.get("source_url"),
+                "retrieved_at": wiki.get("retrieved_at"),
+            })
+
+    # Public activity & company news
+    activity = row.get("_activity_observation")
+    news = row.get("_news_observation")
+    if activity:
+        act_metrics = activity.get("metrics") or {}
+        social_count = act_metrics.get("verified_social_links", 0)
+        pages_count = act_metrics.get("bounded_pages_captured", 0)
+        sentences.append(f"Its verified company site features {pages_count} captured pages and {social_count} verified social links.")
+    if news:
+        sentences.append("Company-published news/press updates were found on its verified site.")
+
+    # Hiring signal
+    hiring_obs = row.get("_hiring_observation")
+    if hiring_obs:
+        h_metrics = hiring_obs.get("metrics") or {}
+        if h_metrics.get("hiring_keyword_detected"):
+            sentences.append("Maintains a careers/jobs page on its verified website with active hiring language detected.")
+        else:
+            sentences.append("Maintains a careers/jobs page on its verified website.")
+        supporting_sources.append({
+            "claim": "hiring_signal",
+            "source_url": hiring_obs.get("source_url"),
+            "retrieved_at": hiring_obs.get("retrieved_at"),
+        })
+    else:
+        hiring = _hiring_signal(row)
+        if hiring:
+            sentences.append(f"It {hiring}.")
 
     if refresh_events:
         relevant = [event for event in refresh_events if event.get("organisation_number") == org]
@@ -177,14 +234,44 @@ def build_summary(row: dict[str, Any], refresh_events: list[dict[str, Any]] | No
     }
 
 
+def _index_by_org(path: str | None) -> dict[str, dict[str, Any]]:
+    if not path or not Path(path).exists():
+        return {}
+    return {str(item["organisation_number"]): item for item in read_jsonl(Path(path))}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate a free, deterministic decision-useful summary per company profile.")
     parser.add_argument("--input", required=True, help="Terminal envelope or profile JSONL (must include the 'evidence' object)")
     parser.add_argument("--output", required=True)
     parser.add_argument("--refresh-events", help="Optional refresh-replay JSON (from run_refresh_replay.py) to fold change events into the summary")
+    parser.add_argument("--activity", help="Optional activity connector JSONL")
+    parser.add_argument("--news", help="Optional news connector JSONL")
+    parser.add_argument("--hiring", help="Optional hiring connector JSONL")
+    parser.add_argument("--wikidata", help="Optional wikidata connector JSONL")
+    parser.add_argument("--nominatim", help="Optional nominatim connector JSONL")
     args = parser.parse_args()
 
     rows = read_jsonl(Path(args.input))
+    activity_by_org = _index_by_org(args.activity)
+    news_by_org = _index_by_org(args.news)
+    hiring_by_org = _index_by_org(args.hiring)
+    wikidata_by_org = _index_by_org(args.wikidata)
+    nominatim_by_org = _index_by_org(args.nominatim)
+
+    for row in rows:
+        org = str(row.get("organisation_number"))
+        if org in activity_by_org:
+            row["_activity_observation"] = activity_by_org[org]
+        if org in news_by_org:
+            row["_news_observation"] = news_by_org[org]
+        if org in hiring_by_org:
+            row["_hiring_observation"] = hiring_by_org[org]
+        if org in wikidata_by_org:
+            row["_wikidata_observation"] = wikidata_by_org[org]
+        if org in nominatim_by_org:
+            row["_nominatim_observation"] = nominatim_by_org[org]
+
     refresh_events = None
     if args.refresh_events:
         payload = json.loads(Path(args.refresh_events).read_text(encoding="utf-8"))

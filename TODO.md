@@ -43,8 +43,10 @@ Seeded from `AGENT_MISSION.md` §3 on 20 September 2026.
 
 ## Phase 4 — Polish (do last, only if Phase 1-3 are genuinely exhausted)
 
-- [ ] Synthesis quality pass on `generate_synthesis.py` — fold real hiring/activity/location language into the generated summary honestly.
-- [ ] Showcase UX (`build_prototype.py`): surface the new external footprint data in the browsable site.
+- [x] Synthesis quality pass on `generate_synthesis.py` — fold real hiring/activity/location language into the generated summary honestly.
+  **Done:** Ingests `--activity`, `--news`, `--hiring`, `--wikidata`, and `--nominatim` to enrich deterministic company summaries with physical coordinates, Wikidata descriptions, website activity, and career links without hallucination.
+- [x] Showcase UX (`build_prototype.py`): surface the new external footprint data in the browsable site.
+  **Done:** Enhanced `compact()` and HTML/JS template to display OpenStreetMap verified locations, Wikidata entity profiles, updated stats bar, and smart Q&A routing in Research Agent for coordinates/locations and Wikipedia/Wikidata queries.
 
 ---
 
@@ -60,4 +62,7 @@ Seeded from `AGENT_MISSION.md` §3 on 20 September 2026.
 | Export terminal envelopes | Added `--wikidata` and `--nominatim` flags emitting `company_profile` and `place_summary` claims | 2026-09-20 |
 | Pipeline scripts synchronization | Updated `run_full_pipeline.ps1` and `run_full_pipeline.sh` with Wikidata and Nominatim stages | 2026-09-20 |
 | Audit helper tool | `scripts/audit_published_claims.py` for human eyeball audit of claims and evidence | 2026-09-20 |
-| Test suite expansion | 114 tests passing in `tests/test_poc.py` | 2026-09-20 |
+| Test suite expansion (v6) | 114 tests passing in `tests/test_poc.py` | 2026-09-20 |
+| Deterministic synthesis quality pass | Ingests external footprint (OSM, Wikidata, activity, hiring) in `scripts/generate_synthesis.py` | 2026-09-20 |
+| Showcase UX upgrades | OpenStreetMap and Wikidata visual footprint & research agent Q&A in `scripts/build_prototype.py` | 2026-09-20 |
+| Test suite expansion (v7) | 116 tests passing in `tests/test_poc.py` | 2026-09-20 |

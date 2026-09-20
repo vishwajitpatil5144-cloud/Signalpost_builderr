@@ -36,17 +36,7 @@ uv run python scripts/run_free_domain_discovery.py \
   --report "$OUT_DIR/discovery-report.json" \
   --promote-verified
 
-echo "== [3/5] Deterministic, $0 decision-useful synthesis =="
-uv run python scripts/generate_synthesis.py \
-  --input "$OUT_DIR/profiles-with-discovery.jsonl" \
-  --output "$OUT_DIR/synthesis.jsonl"
-
-echo "== [4/6] Browsable showcase site =="
-uv run python scripts/build_prototype.py \
-  --input "$OUT_DIR/envelopes.jsonl" \
-  --output "$OUT_DIR/showcase.html" || echo "(showcase build skipped/failed — check scripts/build_prototype.py --help)"
-
-echo "== [5/6] Public activity, news, and hiring-signal connectors =="
+echo "== [3/6] External footprint & signal connectors =="
 uv run python scripts/extract_company_site_activity.py \
   --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
   --output "$OUT_DIR/activity.jsonl" \
@@ -67,6 +57,22 @@ uv run python scripts/run_nominatim_connector.py \
   --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
   --output "$OUT_DIR/nominatim.jsonl" \
   --report "$OUT_DIR/nominatim-report.json"
+
+echo "== [4/6] Deterministic, $0 decision-useful synthesis =="
+uv run python scripts/generate_synthesis.py \
+  --input "$OUT_DIR/profiles-with-discovery.jsonl" \
+  --output "$OUT_DIR/synthesis.jsonl" \
+  --activity "$OUT_DIR/activity.jsonl" \
+  --news "$OUT_DIR/news.jsonl" \
+  --hiring "$OUT_DIR/hiring.jsonl" \
+  --wikidata "$OUT_DIR/wikidata.jsonl" \
+  --nominatim "$OUT_DIR/nominatim.jsonl"
+
+echo "== [5/6] Browsable showcase site =="
+uv run python scripts/build_prototype.py \
+  --input "$OUT_DIR/envelopes.jsonl" \
+  --external-observations "$OUT_DIR/wikidata.jsonl" "$OUT_DIR/nominatim.jsonl" \
+  --output "$OUT_DIR/showcase.html" || echo "(showcase build skipped/failed — check scripts/build_prototype.py --help)"
 
 echo "== [6/6] Export contract-compliant terminal envelopes =="
 uv run python scripts/export_terminal_envelopes.py \

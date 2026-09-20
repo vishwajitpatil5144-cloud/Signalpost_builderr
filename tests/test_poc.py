@@ -1566,6 +1566,132 @@ class VerifiedSiteSeedTests(unittest.TestCase):
         self.assertEqual(claims_by_field["place_summary"]["availability"], "available")
         self.assertEqual(claims_by_field["place_summary"]["value"]["osm_id"], 987654)
 
+    def test_deterministic_synthesis_with_external_footprint(self):
+        from scripts.generate_synthesis import build_summary
+        row = {
+            "organisation_number": "912345678",
+            "name": "Nordic Tech AS",
+            "legal_form": "AS",
+            "municipality": "OSLO",
+            "industry_label": "Software development",
+            "_nominatim_observation": {
+                "metrics": {
+                    "latitude": 59.9112,
+                    "longitude": 10.7501,
+                    "display_name": "Karl Johans gate 1, Oslo",
+                },
+                "source_url": "https://www.openstreetmap.org/way/987654",
+                "retrieved_at": "2026-09-20T12:00:00Z",
+            },
+            "_wikidata_observation": {
+                "wikidata_description": "Norwegian software company",
+                "wikidata_inception": "2015-05-10T00:00:00Z",
+                "source_url": "http://www.wikidata.org/entity/Q12345",
+                "retrieved_at": "2026-09-20T12:00:00Z",
+            },
+            "_activity_observation": {
+                "metrics": {
+                    "bounded_pages_captured": 3,
+                    "verified_social_links": 2,
+                }
+            },
+            "_hiring_observation": {
+                "metrics": {
+                    "hiring_keyword_detected": True,
+                },
+                "source_url": "https://nordictech.no/karriere",
+                "retrieved_at": "2026-09-20T12:00:00Z",
+            },
+        }
+        summary = build_summary(row)
+        text = summary["summary"]
+        self.assertIn("Nordic Tech AS is a AS registered in OSLO", text)
+        self.assertIn("OpenStreetMap (59.9112, 10.7501)", text)
+        self.assertIn("Wikidata records it as: Norwegian software company; inception 2015", text)
+        self.assertIn("3 captured pages and 2 verified social links", text)
+        self.assertIn("careers/jobs page on its verified website with active hiring language", text)
+        self.assertEqual(summary["generation_method"], "deterministic_template_v1")
+
+    def test_compact_and_build_prototype_with_external_footprint(self):
+        from scripts.build_prototype import compact, build
+        row = {
+            "organisation_number": "999888777",
+            "name": "Fjord Software AS",
+            "legal_form": "AS",
+            "employees": 15,
+            "municipality": "BERGEN",
+            "industry_code": "62.010",
+            "industry_label": "Computer programming",
+            "website": "https://fjordsoftware.no",
+            "bankrupt": False,
+            "liquidating": False,
+            "evidence": {
+                "registry": {"status": "available", "source_url": "https://data.brreg.no/enhetsregisteret/api/enheter/999888777"},
+                "financials": {"status": "not_available"},
+                "roles": {"status": "available", "value": {"roles": [{"name": "Ola Nordmann", "role": "Daglig leder"}]}},
+                "locations": {"status": "not_available"},
+                "website": {"status": "available", "value": {"title": "Fjord Software", "description": "Software studio"}},
+            },
+        }
+        obs = [
+            {
+                "schema_version": "1.0",
+                "observation_id": "wikidata:P2333:999888777",
+                "organisation_number": "999888777",
+                "platform": "wikidata",
+                "signal_type": "company_profile",
+                "exact_entity": True,
+                "profile_url": "https://www.wikidata.org/wiki/Q999888",
+                "source_url": "https://query.wikidata.org/sparql",
+                "source_class": "official_api",
+                "retrieved_at": "2026-09-20T12:00:00Z",
+                "rights_status": "approved",
+                "acquisition_mode": "official_api",
+                "metrics": {
+                    "qid": "Q999888",
+                    "item_label": "Fjord Software",
+                    "description": "Norwegian software firm",
+                    "wikipedia_url": "https://no.wikipedia.org/wiki/Fjord_Software",
+                    "sitelinks": 4,
+                },
+                "evidence_span": "Wikidata Q999888: Fjord Software",
+            },
+            {
+                "schema_version": "1.0",
+                "observation_id": "osm:nominatim:999888777",
+                "organisation_number": "999888777",
+                "platform": "openstreetmap",
+                "signal_type": "place_summary",
+                "exact_entity": True,
+                "profile_url": "https://www.openstreetmap.org/node/12345",
+                "source_url": "https://nominatim.openstreetmap.org/search",
+                "source_class": "official_api",
+                "retrieved_at": "2026-09-20T12:00:00Z",
+                "rights_status": "approved",
+                "acquisition_mode": "official_api",
+                "metrics": {
+                    "osm_id": 12345,
+                    "osm_type": "node",
+                    "lat": "60.3913",
+                    "lon": "5.3221",
+                    "display_name": "Bryggen, Bergen, Vestland, Norge",
+                },
+                "evidence_span": "OpenStreetMap verified location: Bryggen, Bergen",
+            },
+        ]
+        compacted = compact(row, obs)
+        self.assertIsNotNone(compacted["external"]["wikidata"])
+        self.assertEqual(compacted["external"]["wikidata"]["qid"], "Q999888")
+        self.assertIsNotNone(compacted["external"]["osm"])
+        self.assertEqual(compacted["external"]["osm"]["lat"], "60.3913")
+
+        html_out = build([row], score=None, external_by_org={"999888777": obs})
+        self.assertIn("Fjord Software AS", html_out)
+        self.assertIn("OSM verified locations", html_out)
+        self.assertIn("Wikidata entities", html_out)
+        self.assertIn("OpenStreetMap verified location", html_out)
+        self.assertIn("Wikidata &amp; Wikipedia identity", html_out)
+
 
 if __name__ == "__main__":
     unittest.main()
