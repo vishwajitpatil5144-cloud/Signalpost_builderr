@@ -1,8 +1,16 @@
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$Organisations,
-    [Parameter(Mandatory = $true)][string]$Bulk,
-    [Parameter(Mandatory = $true)][int]$ExpectedCount,
-    [Parameter(Mandatory = $true)][string]$RunId
+    [Parameter(Mandatory = $true)]
+    [string]$Organisations,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Bulk,
+
+    [Parameter(Mandatory = $true)]
+    [int]$ExpectedCount,
+
+    [Parameter(Mandatory = $true)]
+    [string]$RunId
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,8 +69,10 @@ uv run python scripts/generate_synthesis.py `
 Write-Host "== [5/6] Browsable showcase site =="
 try {
     uv run python scripts/build_prototype.py `
-        --input "$outDir/envelopes.jsonl" `
-        --external-observations "$outDir/wikidata.jsonl" "$outDir/nominatim.jsonl" `
+        --input "$outDir/profiles-with-discovery.jsonl" `
+        --external-observations `
+            "$outDir/wikidata.jsonl" `
+            "$outDir/nominatim.jsonl" `
         --output "$outDir/showcase.html"
 } catch {
     Write-Host "(showcase build skipped/failed -- check scripts/build_prototype.py --help)"
@@ -87,4 +97,4 @@ Write-Host "  $outDir/envelopes.jsonl            (internal envelope shape)"
 Write-Host "  $outDir/profiles-with-discovery.jsonl"
 Write-Host "  $outDir/synthesis.jsonl            (decision-useful summaries)"
 Write-Host "  $outDir/showcase.html              (browsable UI)"
-Write-Host "  $outDir/run-report.json, $outDir/discovery-report.json  (cost/request accounting)"
+Write-Host "  $outDir/run-report.json, $outDir/discovery-report.json  (cost/request accounting)"
