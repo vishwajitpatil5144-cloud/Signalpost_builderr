@@ -1,0 +1,11 @@
+{
+  "connector": "wikidata_org_number_v1",
+  "profiles_queried": 100,
+  "sparql_requests": 1,
+  "bindings_returned": 1,
+  "observations": 1,
+  "publishable": 1,
+  "companies_found": 1,
+  "errors": 0,
+  "claim_boundary": "Company profile from Wikidata matched by exact P2333 (Norwegian org number). Free, official API, no key required."
+}

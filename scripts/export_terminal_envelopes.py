@@ -284,6 +284,72 @@ def build_envelope(
     else:
         claim("hiring_signal", None, "not_available", 0.0, web.get("source"), "company_site", web.get("retrievedAt"), web.get("hash"), note="No careers/jobs page found on the verified company site this run.")
 
+    wikidata = row.get("_wikidata_observation")
+    if wikidata:
+        claim(
+            "company_profile",
+            {
+                "platform": "wikidata",
+                "entity": wikidata.get("wikidata_entity"),
+                "label": wikidata.get("wikidata_label"),
+                "description": wikidata.get("wikidata_description"),
+                "inception": wikidata.get("wikidata_inception"),
+            },
+            "available",
+            0.95,
+            wikidata.get("source_url"),
+            "wikidata_exact_entity",
+            wikidata.get("retrieved_at"),
+            wikidata.get("content_sha256"),
+            note=f"Matched on official Norwegian organisation number (P2333): {str(wikidata.get('evidence_span') or '')[:200]}",
+        )
+    elif row.get("_has_wikidata_input"):
+        claim(
+            "company_profile",
+            None,
+            "not_available",
+            0.0,
+            "https://query.wikidata.org/sparql",
+            "wikidata_exact_entity",
+            registry_retrieved,
+            None,
+            note="No exact P2333 organisation number match found in Wikidata.",
+        )
+
+    nominatim = row.get("_nominatim_observation")
+    if nominatim:
+        nom_metrics = nominatim.get("metrics") or {}
+        claim(
+            "place_summary",
+            {
+                "platform": "openstreetmap",
+                "osm_id": nom_metrics.get("osm_id"),
+                "osm_type": nom_metrics.get("osm_type"),
+                "latitude": nom_metrics.get("latitude"),
+                "longitude": nom_metrics.get("longitude"),
+                "display_name": nom_metrics.get("display_name"),
+            },
+            "available",
+            0.95,
+            nominatim.get("source_url"),
+            "openstreetmap_verified_place",
+            nominatim.get("retrieved_at"),
+            nominatim.get("content_sha256"),
+            note=f"Cross-verified registered business address via OpenStreetMap: {str(nominatim.get('evidence_span') or '')[:200]}",
+        )
+    elif row.get("_has_nominatim_input"):
+        claim(
+            "place_summary",
+            None,
+            "not_available",
+            0.0,
+            "https://nominatim.openstreetmap.org/search",
+            "openstreetmap_verified_place",
+            registry_retrieved,
+            None,
+            note="No verified OpenStreetMap place match for registered business address.",
+        )
+
     metrics = row.get("run_metrics") or {}
     ops = per_company_ops or {
         "requests": metrics.get("requests", 0),
@@ -318,12 +384,16 @@ def main() -> None:
     parser.add_argument("--activity", help="activity connector JSONL")
     parser.add_argument("--news", help="news connector JSONL")
     parser.add_argument("--hiring", help="hiring connector JSONL")
+    parser.add_argument("--wikidata", help="wikidata connector JSONL")
+    parser.add_argument("--nominatim", help="nominatim connector JSONL")
     args = parser.parse_args()
 
     rows = read_jsonl(Path(args.input))
     activity_by_org = _index_by_org(args.activity)
     news_by_org = _index_by_org(args.news)
     hiring_by_org = _index_by_org(args.hiring)
+    wikidata_by_org = _index_by_org(args.wikidata)
+    nominatim_by_org = _index_by_org(args.nominatim)
     for row in rows:
         org = str(row.get("organisation_number"))
         if org in activity_by_org:
@@ -332,6 +402,14 @@ def main() -> None:
             row["_news_observation"] = news_by_org[org]
         if org in hiring_by_org:
             row["_hiring_observation"] = hiring_by_org[org]
+        if bool(args.wikidata):
+            row["_has_wikidata_input"] = True
+            if org in wikidata_by_org:
+                row["_wikidata_observation"] = wikidata_by_org[org]
+        if bool(args.nominatim):
+            row["_has_nominatim_input"] = True
+            if org in nominatim_by_org:
+                row["_nominatim_observation"] = nominatim_by_org[org]
     changes_by_org: dict[str, list[dict[str, Any]]] = {}
     if args.previous:
         previous = read_jsonl(Path(args.previous))

@@ -14,7 +14,14 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
-CAREER_PATH = re.compile(r"/(?:jobb|jobs|karriere|careers|stilling(?:er)?|ledige)(?:/|$)", re.I)
+CAREER_PATH = re.compile(
+    r"/(?:jobb|jobs|karriere|careers|stilling(?:er)?|ledige|work-with-us|join-us|vacancies|rekruttering)(?:/|$)",
+    re.I,
+)
+CAREER_TITLE = re.compile(
+    r"\b(karriere|ledige\s+stillinger|jobb\s+hos\s+oss|careers|vacancies|work\s+with\s+us|join\s+our\s+team)\b",
+    re.I,
+)
 HIRING_TERMS = re.compile(
     r"\b(vi\s+s(?:ø|o)ker|ledige\s+stilling|s(?:ø|o)k\s+n(?:å|a)|we(?:'|’)?re\s+hiring|"
     r"now\s+hiring|open\s+position|join\s+our\s+team|open\s+role)\b",
@@ -31,6 +38,7 @@ def observation(profile: dict) -> dict | None:
     career_pages = [
         page for page in (value.get("pages") or [])
         if CAREER_PATH.search(urlparse(str(page.get("url") or "")).path)
+        or CAREER_TITLE.search(str(page.get("title") or ""))
     ]
     if not career_pages:
         return None

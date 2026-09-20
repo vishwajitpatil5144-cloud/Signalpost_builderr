@@ -30,12 +30,15 @@ SOCIAL_HOSTS = {
     "youtu.be": "youtube",
     "tiktok.com": "tiktok",
 }
-PRIORITY_TERMS = (
-    "om-oss", "om_oss", "about", "kontakt", "contact", "ledelse", "management",
-    "team", "people", "locations", "lokasjoner", "avdelinger", "butikker",
-    "news", "press", "aktuelt", "nyheter",
-    "jobb", "jobs", "karriere", "careers", "stilling", "stillinger", "ledige",
+PRIORITY_BUCKETS = (
+    ("career", ("karriere", "careers", "jobb", "jobs", "stilling", "stillinger", "ledige", "work-with-us", "join-us", "vacancies")),
+    ("news", ("nyheter", "aktuelt", "presse", "press", "/news", "artikler")),
+    ("identity", ("om-oss", "om_oss", "about", "hvem-er-vi")),
+    ("contact", ("kontakt", "contact")),
+    ("leadership", ("ledelse", "styret", "/team", "/people", "management")),
+    ("locations", ("locations", "lokasjoner", "avdelinger", "butikker")),
 )
+PRIORITY_TERMS = tuple(term for _, terms in PRIORITY_BUCKETS for term in terms)
 
 
 def assert_public_url(url: str) -> None:
@@ -189,22 +192,43 @@ def normalize_social_url(url: str) -> dict[str, str] | None:
 
 def _priority_links(base_url: str, soup: BeautifulSoup, limit: int = 5) -> list[str]:
     base = urllib.parse.urlparse(base_url)
-    candidates: dict[str, int] = {}
+    bucket_candidates: dict[str, dict[str, int]] = {b: {} for b, _ in PRIORITY_BUCKETS}
     for anchor in soup.select("a[href]"):
         href = str(anchor.get("href") or "").strip()
         url = urllib.parse.urljoin(base_url, href)
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme not in {"http", "https"} or parsed.netloc.lower() != base.netloc.lower():
             continue
-        haystack = (parsed.path + " " + anchor.get_text(" ", strip=True)).casefold()
-        rank = next((index for index, term in enumerate(PRIORITY_TERMS) if term in haystack), None)
-        if rank is None:
-            continue
         clean = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path or "/", "", "", ""))
         if clean.rstrip("/") == base_url.rstrip("/"):
             continue
-        candidates[clean] = min(rank, candidates.get(clean, rank))
-    return [url for url, _ in sorted(candidates.items(), key=lambda item: (item[1], item[0]))[:limit]]
+        haystack = (parsed.path + " " + anchor.get_text(" ", strip=True)).casefold()
+        for b_name, terms in PRIORITY_BUCKETS:
+            for term in terms:
+                if term in haystack:
+                    bucket_candidates[b_name][clean] = min(len(clean), bucket_candidates[b_name].get(clean, len(clean)))
+                    break
+            if clean in bucket_candidates[b_name]:
+                break
+
+    selected: list[str] = []
+    for b_name, _ in PRIORITY_BUCKETS:
+        items = sorted(bucket_candidates[b_name].items(), key=lambda item: (item[1], item[0]))
+        if items:
+            candidate_url = items[0][0]
+            if candidate_url not in selected:
+                selected.append(candidate_url)
+                if len(selected) >= limit:
+                    return selected
+
+    remaining: list[str] = []
+    for b_name, _ in PRIORITY_BUCKETS:
+        items = sorted(bucket_candidates[b_name].items(), key=lambda item: (item[1], item[0]))
+        for candidate_url, _ in items[1:]:
+            if candidate_url not in selected and candidate_url not in remaining:
+                remaining.append(candidate_url)
+
+    return (selected + remaining)[:limit]
 
 
 def _fetch_secondary_page(url: str, *, homepage_domain: str, timeout: float, max_bytes: int) -> tuple[dict[str, Any] | None, list[dict[str, str]], int, int, int, str | None]:

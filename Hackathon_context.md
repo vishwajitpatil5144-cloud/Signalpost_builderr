@@ -643,3 +643,47 @@ requests and 347 discovery requests, for 917 outbound requests total, below
 the 2,000-request budget. The distributions were 20 `public_activity`, 3
 company-news observations, 1 bounded `hiring_signal`, and 7 `ambiguous`
 website claims. All envelopes had nonzero operations metrics and valid states.
+
+## 19. v6 external footprint & multi-connector validation (20 September 2026)
+
+V6 implements the external footprint schema and multi-connector expansion
+strictly conforming to AGENT_MISSION.md §0 rules:
+
+1. **Signal-bucketed link selection & career discovery fix**:
+   Refactored `_priority_links()` in `website.py` into signal buckets (`career`,
+   `news`, `identity`, `contact`, `leadership`, `locations`) with round-robin
+   interleaved candidate selection. This prevents common product phrases (e.g.
+   "management") from crowding out careers and news. Expanded `CAREER_PATH` and
+   added `CAREER_TITLE` matching in `extract_company_hiring_signal.py`.
+
+2. **Wikidata connector (`official_api`, free, approved)**:
+   `scripts/run_wikidata_connector.py` queries Wikidata SPARQL for exact
+   Norwegian organisation numbers (property P2333). Batches 100 org numbers in
+   1 SPARQL request. Emits `company_profile` with exact identity proof.
+
+3. **OpenStreetMap / Nominatim location verification connector**:
+   `scripts/run_nominatim_connector.py` cross-verifies registered business
+   addresses from Brreg against OpenStreetMap. Adheres strictly to Nominatim
+   Usage Policy: rate-limited to >= 1.1s intervals (<= 1 req/s) with on-disk
+   caching in `out/cache/nominatim/`. Verified 80/100 companies in the benchmark
+   batch with exact coordinates and OSM place IDs (80/80 publishable observations,
+   0 errors). Emits `place_summary` claims.
+
+4. **Google Places & YouTube API connectors (§0 Rule 4)**:
+   Implemented `scripts/run_google_places_connector.py` and
+   `scripts/run_youtube_api_connector.py` behind `SIGNAL_SCRAPE_GOOGLE_PLACES_API_KEY`
+   and `SIGNAL_SCRAPE_YOUTUBE_API_KEY`. When keys are unset, both report cleanly
+   as inactive pending operator keys without failing the run.
+
+5. **Terminal envelope exporter & pipeline synchronization**:
+   `scripts/export_terminal_envelopes.py` accepts `--wikidata` and `--nominatim`
+   and emits `company_profile` and `place_summary` claims with full six-state
+   vocabulary compliance. Both `run_full_pipeline.ps1` and `run_full_pipeline.sh`
+   are synchronized with the new stages. Fresh export on the 100-company rerun
+   contains 1,796 claims (1,187 available, 7 ambiguous, 3 failed, 1 blocked,
+   598 not_available) with zero invalid states and zero dangling evidence references.
+
+6. **Self-audit tooling & tests**:
+   Created `scripts/audit_published_claims.py` for human review. Test suite
+   expanded from 110 to 114 tests, all passing in 2.9 seconds. Total requests:
+   1,012 / 2,000 budget, $0 cost.

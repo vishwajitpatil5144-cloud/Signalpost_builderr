@@ -59,6 +59,14 @@ uv run python scripts/extract_company_hiring_signal.py \
   --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
   --output "$OUT_DIR/hiring.jsonl" \
   --report "$OUT_DIR/hiring-report.json"
+uv run python scripts/run_wikidata_connector.py \
+  --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
+  --output "$OUT_DIR/wikidata.jsonl" \
+  --report "$OUT_DIR/wikidata-report.json"
+uv run python scripts/run_nominatim_connector.py \
+  --profiles "$OUT_DIR/profiles-with-discovery.jsonl" \
+  --output "$OUT_DIR/nominatim.jsonl" \
+  --report "$OUT_DIR/nominatim-report.json"
 
 echo "== [6/6] Export contract-compliant terminal envelopes =="
 uv run python scripts/export_terminal_envelopes.py \
@@ -67,7 +75,9 @@ uv run python scripts/export_terminal_envelopes.py \
   --run-id "$RUN_ID" \
   --activity "$OUT_DIR/activity.jsonl" \
   --news "$OUT_DIR/news.jsonl" \
-  --hiring "$OUT_DIR/hiring.jsonl"
+  --hiring "$OUT_DIR/hiring.jsonl" \
+  --wikidata "$OUT_DIR/wikidata.jsonl" \
+  --nominatim "$OUT_DIR/nominatim.jsonl"
 
 echo
 echo "Done. Key outputs:"

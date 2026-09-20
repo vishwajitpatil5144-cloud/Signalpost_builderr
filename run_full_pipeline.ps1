@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $outDir = "out"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-Write-Host "== [1/5] Registry + registry-website batch =="
+Write-Host "== [1/7] Registry + registry-website batch =="
 uv run python scripts/run_competition_batch.py `
     --organisations $Organisations `
     --bulk $Bulk `
@@ -19,28 +19,66 @@ uv run python scripts/run_competition_batch.py `
     --run-id $RunId `
     --expected-count $ExpectedCount
 
-Write-Host "== [2/5] Free website discovery for the rest =="
+Write-Host "== [2/7] Free website discovery for the rest =="
 uv run python scripts/run_free_domain_discovery.py `
     --input "$outDir/profiles.jsonl" `
     --output "$outDir/profiles-with-discovery.jsonl" `
     --report "$outDir/discovery-report.json" `
     --promote-verified
 
-Write-Host "== [3/5] Deterministic synthesis =="
+Write-Host "== [3/7] Deterministic synthesis =="
 uv run python scripts/generate_synthesis.py `
     --input "$outDir/profiles-with-discovery.jsonl" `
     --output "$outDir/synthesis.jsonl"
 
-Write-Host "== [4/5] Browsable showcase site =="
-uv run python scripts/build_prototype.py `
-    --input "$outDir/envelopes.jsonl" `
-    --output "$outDir/showcase.html"
+Write-Host "== [4/7] Browsable showcase site =="
+try {
+    uv run python scripts/build_prototype.py `
+        --input "$outDir/envelopes.jsonl" `
+        --output "$outDir/showcase.html"
+} catch {
+    Write-Host "(showcase build skipped/failed -- check scripts/build_prototype.py --help)"
+}
+
+Write-Host "== [5/7] Public activity, news, and hiring-signal connectors =="
+uv run python scripts/extract_company_site_activity.py `
+    --profiles "$outDir/profiles-with-discovery.jsonl" `
+    --output "$outDir/activity.jsonl" `
+    --report "$outDir/activity-report.json"
+uv run python scripts/extract_company_site_news.py `
+    --profiles "$outDir/profiles-with-discovery.jsonl" `
+    --output "$outDir/news.jsonl" `
+    --report "$outDir/news-report.json"
+uv run python scripts/extract_company_hiring_signal.py `
+    --profiles "$outDir/profiles-with-discovery.jsonl" `
+    --output "$outDir/hiring.jsonl" `
+    --report "$outDir/hiring-report.json"
+uv run python scripts/run_wikidata_connector.py `
+    --profiles "$outDir/profiles-with-discovery.jsonl" `
+    --output "$outDir/wikidata.jsonl" `
+    --report "$outDir/wikidata-report.json"
+uv run python scripts/run_nominatim_connector.py `
+    --profiles "$outDir/profiles-with-discovery.jsonl" `
+    --output "$outDir/nominatim.jsonl" `
+    --report "$outDir/nominatim-report.json"
 
 # This is the contract-facing file; envelopes.jsonl remains an internal shape.
-Write-Host "== [5/5] Export contract-compliant terminal envelopes =="
+Write-Host "== [6/7] Export contract-compliant terminal envelopes =="
 uv run python scripts/export_terminal_envelopes.py `
     --input "$outDir/profiles-with-discovery.jsonl" `
     --output "$outDir/terminal-envelopes.jsonl" `
-    --run-id $RunId
+    --run-id $RunId `
+    --activity "$outDir/activity.jsonl" `
+    --news "$outDir/news.jsonl" `
+    --hiring "$outDir/hiring.jsonl" `
+    --wikidata "$outDir/wikidata.jsonl" `
+    --nominatim "$outDir/nominatim.jsonl"
 
-Write-Host "Done. Submit $outDir/terminal-envelopes.jsonl"
+Write-Host ""
+Write-Host "Done. Key outputs:"
+Write-Host "  $outDir/terminal-envelopes.jsonl   (submission artifact)"
+Write-Host "  $outDir/envelopes.jsonl            (internal envelope shape)"
+Write-Host "  $outDir/profiles-with-discovery.jsonl"
+Write-Host "  $outDir/synthesis.jsonl            (decision-useful summaries)"
+Write-Host "  $outDir/showcase.html              (browsable UI)"
+Write-Host "  $outDir/run-report.json, $outDir/discovery-report.json  (cost/request accounting)"

@@ -962,6 +962,21 @@ class WebsiteTests(unittest.TestCase):
         soup = BeautifulSoup('<a href="/kontakt">Contact</a><a href="https://other.no/about">About</a><a href="/products">Products</a>', "html.parser")
         self.assertEqual(_priority_links("https://example.no/", soup), ["https://example.no/kontakt"])
 
+    def test_priority_pages_interleave_signal_buckets(self):
+        html = (
+            '<a href="/om-oss/1">About 1</a>'
+            '<a href="/om-oss/2">About 2</a>'
+            '<a href="/kontakt">Contact</a>'
+            '<a href="/nyheter">News</a>'
+            '<a href="/karriere">Careers</a>'
+        )
+        soup = BeautifulSoup(html, "html.parser")
+        links = _priority_links("https://example.no/", soup, limit=4)
+        self.assertIn("https://example.no/karriere", links)
+        self.assertIn("https://example.no/nyheter", links)
+        self.assertIn("https://example.no/kontakt", links)
+        self.assertIn("https://example.no/om-oss/1", links)
+
     def test_js_shell_is_only_a_fallback_candidate(self):
         shell = BeautifulSoup('<html><script src="a.js"></script><script src="b.js"></script></html>', "html.parser")
         self.assertEqual(_extraction_state("", shell), "js_fallback_candidate")
@@ -1428,6 +1443,128 @@ class VerifiedSiteSeedTests(unittest.TestCase):
             failed = subprocess.run(command, capture_output=True, text=True)
             self.assertNotEqual(failed.returncode, 0)
             self.assertIn("unknown organisations", failed.stderr)
+
+    def test_wikidata_connector_observation_structure(self):
+        from scripts.run_wikidata_connector import _build_observations
+        sample_bindings = [
+            {
+                "item": {"type": "uri", "value": "http://www.wikidata.org/entity/Q12345"},
+                "itemLabel": {"type": "literal", "value": "Test Company AS"},
+                "org": {"type": "literal", "value": "912345678"},
+                "description": {"type": "literal", "value": "Norsk teknologiselskap"},
+                "website": {"type": "uri", "value": "https://testcompany.no"},
+                "inception": {"type": "literal", "value": "2015-05-10T00:00:00Z"},
+            }
+        ]
+        obs_list = _build_observations(sample_bindings, json.dumps(sample_bindings))
+        self.assertEqual(len(obs_list), 1)
+        obs = obs_list[0]
+        self.assertEqual(obs["organisation_number"], "912345678")
+        self.assertEqual(obs["platform"], "wikidata")
+        self.assertEqual(obs["signal_type"], "company_profile")
+        self.assertEqual(obs["acquisition_mode"], "official_api")
+        self.assertEqual(obs["rights_status"], "approved")
+        self.assertEqual(obs["identity_proof"][0]["type"], "wikidata_P2333_exact_match")
+        self.assertEqual(obs["identity_proof"][0]["value"], "912345678")
+        self.assertEqual(validate_observation(obs), [])
+        self.assertTrue(publishable_observation(obs))
+
+    def test_nominatim_connector_observation_and_verification(self):
+        from scripts.run_nominatim_connector import _extract_address, verify_and_build_observation
+        profile = {
+            "organisation_number": "912345678",
+            "name": "Nordic Tech AS",
+            "municipality": "OSLO",
+            "evidence": {
+                "registry_live": {
+                    "value": {
+                        "business_address": {
+                            "adresse": ["Karl Johans gate 1"],
+                            "postnummer": "0154",
+                            "poststed": "OSLO",
+                            "kommune": "OSLO",
+                        }
+                    }
+                }
+            }
+        }
+        address = _extract_address(profile)
+        self.assertIsNotNone(address)
+        self.assertEqual(address["street"], "Karl Johans gate 1")
+        self.assertEqual(address["postcode"], "0154")
+
+        # Matching Nominatim result
+        matching_nom = {
+            "osm_id": 987654,
+            "osm_type": "way",
+            "lat": "59.911",
+            "lon": "10.750",
+            "display_name": "1, Karl Johans gate, Sentrum, Oslo, 0154, Norge",
+            "address": {"postcode": "0154", "city": "Oslo"},
+        }
+        obs = verify_and_build_observation(profile, address, matching_nom, "2026-09-20T12:00:00Z")
+        self.assertIsNotNone(obs)
+        self.assertEqual(obs["platform"], "openstreetmap")
+        self.assertEqual(obs["signal_type"], "place_summary")
+        self.assertEqual(obs["acquisition_mode"], "official_api")
+        self.assertEqual(obs["rights_status"], "approved")
+        self.assertEqual(validate_observation(obs), [])
+        self.assertTrue(publishable_observation(obs))
+
+        # Mismatching Nominatim result (wrong postcode and city)
+        mismatch_nom = {
+            "osm_id": 111111,
+            "osm_type": "way",
+            "lat": "60.0",
+            "lon": "11.0",
+            "display_name": "Somewhere else entirely, Bergen, Norge",
+            "address": {"postcode": "5000", "city": "Bergen"},
+        }
+        mismatch_obs = verify_and_build_observation(profile, address, mismatch_nom, "2026-09-20T12:00:00Z")
+        self.assertIsNone(mismatch_obs)
+
+    def test_export_terminal_envelopes_with_wikidata_and_nominatim(self):
+        row = {
+            "organisation_number": "912345678",
+            "name": "Nordic Tech AS",
+            "form": "AS",
+            "municipality": "OSLO",
+            "industryCode": "62.010",
+            "_has_wikidata_input": True,
+            "_has_nominatim_input": True,
+            "_wikidata_observation": {
+                "wikidata_entity": "http://www.wikidata.org/entity/Q12345",
+                "wikidata_label": "Nordic Tech AS",
+                "wikidata_description": "Norsk teknologiselskap",
+                "wikidata_inception": "2015-05-10T00:00:00Z",
+                "source_url": "http://www.wikidata.org/entity/Q12345",
+                "retrieved_at": "2026-09-20T12:00:00Z",
+                "content_sha256": "abcdef",
+                "evidence_span": "Wikidata match",
+            },
+            "_nominatim_observation": {
+                "metrics": {
+                    "osm_id": 987654,
+                    "osm_type": "way",
+                    "latitude": 59.911,
+                    "longitude": 10.750,
+                    "display_name": "Karl Johans gate 1, Oslo",
+                },
+                "source_url": "https://www.openstreetmap.org/way/987654",
+                "retrieved_at": "2026-09-20T12:00:00Z",
+                "content_sha256": "123456",
+                "evidence_span": "OSM match",
+            },
+        }
+        envelope = build_envelope(row, "test-run")
+        claims_by_field = {c["field"]: c for c in envelope["claims"]}
+        self.assertIn("company_profile", claims_by_field)
+        self.assertEqual(claims_by_field["company_profile"]["availability"], "available")
+        self.assertEqual(claims_by_field["company_profile"]["value"]["label"], "Nordic Tech AS")
+
+        self.assertIn("place_summary", claims_by_field)
+        self.assertEqual(claims_by_field["place_summary"]["availability"], "available")
+        self.assertEqual(claims_by_field["place_summary"]["value"]["osm_id"], 987654)
 
 
 if __name__ == "__main__":
