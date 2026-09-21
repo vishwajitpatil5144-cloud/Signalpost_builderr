@@ -1,0 +1,11 @@
+{
+  "connector": "openstreetmap_nominatim_v1",
+  "profiles_processed": 1000,
+  "api_requests": 900,
+  "cache_hits": 100,
+  "addresses_verified": 830,
+  "no_address_in_profile": 0,
+  "no_nominatim_result": 170,
+  "publishable": 830,
+  "claim_boundary": "Cross-verified official registered business address against OpenStreetMap; exact coordinates and OSM place ID. Official API, approved rights, no key required."
+}

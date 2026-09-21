@@ -1,0 +1,7 @@
+{
+  "connector": "exact_company_site_hiring_signal_v1",
+  "profiles": 1000,
+  "companies_with_career_page": 11,
+  "companies_with_hiring_keywords": 0,
+  "claim_boundary": "Page existence and keyword presence only; never an asserted job count."
+}
