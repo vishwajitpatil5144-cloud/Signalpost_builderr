@@ -688,37 +688,48 @@ strictly conforming to AGENT_MISSION.md §0 rules:
    expanded from 110 to 114 tests, all passing in 2.9 seconds. Total requests:
    1,012 / 2,000 budget, $0 cost.
 
-## 20. v7 deterministic synthesis & showcase UX enhancement (20 September 2026)
+## 20. v7 Prototype Showcase and Deterministic Synthesis (20 September 2026)
 
-V7 completes the integration of external signals into decision-useful synthesis
-and the browsable showcase UX:
+V7 folds the external footprint into the decision-useful synthesis and browsable
+showcase UI:
+1. `generate_synthesis.py` ingests `--activity`, `--news`, `--hiring`, `--wikidata`,
+   and `--nominatim` to enrich deterministic summaries with verified geo-coordinates
+   and Wikidata descriptions without LLM hallucinations.
+2. `build_prototype.py` showcases verified OpenStreetMap locations, Wikidata entity
+   links, updated stats counters, and intelligent Q&A routing in the Research Agent.
+3. Test suite expanded to 116 tests passing.
 
-1. **Deterministic synthesis quality pass (`scripts/generate_synthesis.py`)**:
-   Updated `generate_synthesis.py` to accept `--activity`, `--news`, `--hiring`,
-   `--wikidata`, and `--nominatim`. Folds real physical locations (OSM coordinates),
-   Wikidata descriptions, site activity metrics (bounded page count, verified
-   social link count), and careers/jobs page presence honestly into the
-   generated summaries without hallucination or unsupported claims.
+## 21. v8 NAV Arbeidsplassen Vacancy Connector & Backlog Resolution (20 September 2026)
 
-2. **Pipeline re-ordering (`run_full_pipeline.ps1`, `run_full_pipeline.sh`)**:
-   Re-ordered pipeline stages so external connectors run as step 3, deterministic
-   synthesis runs as step 4 (consuming external observations), browsable showcase
-   site builds as step 5, and terminal envelope export runs as step 6. Both shell
-   scripts pass external observations to `build_prototype.py`.
+V8 addresses the remaining backlog items from AGENT_MISSION.md §3:
+1. **NAV Arbeidsplassen Vacancy Connector (`official_api`, free, approved)**:
+   Built `scripts/run_nav_arbeidsplassen_connector.py`. Authenticates via Norway Labour
+   and Welfare Administration's official public JWT (`pam-stilling-feed.nav.no/api/publicToken`)
+   and streams 1,000-item vacancy pages. Emits `job_posting` observations passing
+   `external_footprint.validate_observation` with exact businessName and municipality
+   identity verification. Wired into `export_terminal_envelopes.py` via `--nav`,
+   `generate_synthesis.py`, and both `run_full_pipeline.ps1` and `run_full_pipeline.sh`.
+2. **Google News RSS Connector Compliance Audit**:
+   Empirical check of `news.google.com/robots.txt` confirmed that `/rss/search` is
+   explicitly disallowed under `User-agent: * Disallow: /`. Documented in `OPEN_QUESTIONS.md`
+   under §0 Rule 3 & Rule 9; kept quarantined to prevent rights violations.
+3. **Fagfolkguiden Reviews Connector**:
+   Moved to `scripts/experimental_restricted/` per mission instructions because review
+   ratings are syndicated from Google Local rather than native, and directory coverage
+   on general companies is negligible.
+4. **Sentiment Model Evidence Gating**:
+   Verified that `src/signal_scrape_core/external_footprint.py` strictly abstains
+   (`status: "abstain"`, `score: None`) until the required threshold of >=10
+   independent observations across >=2 distinct hosts is reached (§0 Rule 2 compliant).
+5. **Playwright Feasibility Evaluation**:
+   Empirically confirmed that headless Chromium browser binaries are absent in the local
+   environment and spawning heavyweight browser engines risks blowing the 45-minute
+   evaluator budget. Static link extraction + round-robin priority interleaving captures
+   career pages deterministically without browser overhead.
+6. **Operations Telemetry & Budget Verification**:
+   Verified that every envelope contains real per-company request and runtime measurements
+   (averaging 5–7 requests/co, total 570 requests on 100-company rerun, well within the
+   2,000 budget cap; $0 third-party cost).
+7. **Test Suite Expansion**:
+   Added `NAVArbeidsplassenConnectorTests` with 4 test cases; 120/120 tests passing in 2.87s.
 
-3. **Showcase UX upgrades (`scripts/build_prototype.py`)**:
-   - Ingests external observations for OpenStreetMap and Wikidata in `compact()`.
-   - Surfaces OSM verified locations with coordinates and OSM links under
-     operating locations.
-   - Surfaces Wikidata entities with QID, description, Wikipedia links, and
-     global sitelinks.
-   - Updated stats bar displaying counts for OSM verified locations and Wikidata
-     entities.
-   - Enhanced Research Agent Q&A logic to answer questions about map/coordinates
-     and Wikidata/Wikipedia with verified links and evidence citations.
-
-4. **Test suite & verification**:
-   Added unit tests for deterministic synthesis with external footprints and
-   showcase prototype compact/build with external signals. Test suite expanded
-   to 116 passing tests. All 100 terminal envelopes validated with zero dangling
-   references and zero invalid claim states. Cost remains $0.00.
