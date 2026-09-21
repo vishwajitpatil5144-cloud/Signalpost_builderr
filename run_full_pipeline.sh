@@ -16,7 +16,7 @@ BULK="${2:?bulk CSV path required}"
 EXPECTED_COUNT="${3:?expected count required}"
 RUN_ID="${4:?run id required}"
 
-OUT_DIR="out"
+OUT_DIR="${5:-out}"
 mkdir -p "$OUT_DIR"
 
 echo "== [1/5] Registry + registry-website batch =="

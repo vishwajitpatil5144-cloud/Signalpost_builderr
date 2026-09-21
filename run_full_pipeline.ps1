@@ -10,12 +10,14 @@ param(
     [int]$ExpectedCount,
 
     [Parameter(Mandatory = $true)]
-    [string]$RunId
+    [string]$RunId,
+
+    [Parameter(Mandatory = $false)]
+    [string]$OutDir = "out"
 )
 
 $ErrorActionPreference = "Stop"
-$outDir = "out"
-New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 Write-Host "== [1/6] Registry + registry-website batch =="
 uv run python scripts/run_competition_batch.py `
