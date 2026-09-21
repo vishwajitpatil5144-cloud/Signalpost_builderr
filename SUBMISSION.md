@@ -12,7 +12,7 @@ Submit via email to: **`submit@builderr.ai`**
 
 1. **Agent Name:** `signal_scrape`
 2. **Repository URL:** `https://github.com/vishwajitpatil5144-cloud/Signalpost_builderr.git`
-3. **Commit Hash:** *(Current HEAD on `main` branch)*
+3. **Commit Hash:** `fabba58c386a6cb51b7be4903a738bc3bfa9025b` (or latest HEAD on `main`)
 4. **Completed Profiles Path (≥1,000):** `out/profiles-with-discovery.jsonl`
 5. **Organisation-Number Manifest Path:** `out/manifest-1000.txt`
 6. **Terminal Result Envelopes Path:** `out/terminal-envelopes-1000.jsonl`
