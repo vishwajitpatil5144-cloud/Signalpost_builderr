@@ -1,7 +1,7 @@
 {
-  "run_id": "local-001",
-  "started_at": "2026-09-19T05:46:39.116213Z",
-  "completed_at": "2026-09-19T05:57:13.527294Z",
+  "run_id": "full-1000-run-20260921",
+  "started_at": "2026-09-21T10:47:38.747241Z",
+  "completed_at": "2026-09-21T11:00:42.964935Z",
   "expected_count": 1000,
   "emitted_envelopes": 1000,
   "resumed_profiles": 0,
@@ -23,10 +23,10 @@
     "selected": 1000
   },
   "operations": {
-    "requests": 5542,
-    "bytes": 47027580,
-    "p50_ms": 772,
-    "p95_ms": 844
+    "requests": 5674,
+    "bytes": 61233314,
+    "p50_ms": 812,
+    "p95_ms": 1032
   },
   "validation": {
     "passed": true,

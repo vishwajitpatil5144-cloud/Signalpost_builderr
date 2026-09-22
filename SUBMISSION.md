@@ -17,11 +17,11 @@ Submit via email to: **`submit@builderr.ai`**
 5. **Organisation-Number Manifest Path:** `out/full-1000-run-20260921/manifest-1000.txt`
 6. **Terminal Result Envelopes Path:** `out/full-1000-run-20260921/terminal-envelopes.jsonl`
 7. **Machine-Readable Run Report Path:** `out/full-1000-run-20260921/run-report.json`
-8. **Refresh / Change Evidence Path:** `out/rerun-100-v8-20260921/refresh-check.json` (idempotent rerun verified, 0 false changes)
+8. **Refresh / Change Evidence Path:** `out/full-1000-run-20260921/refresh-check.json` (idempotent rerun verified, 0 false changes across 1,000 entities)
 9. **Interactive Showcase (1,000 entities):** `out/full-1000-run-20260921/showcase.html`
 10. **One-Command Run Instruction:**
-   * PowerShell: `.\run_full_pipeline.ps1 -Organisations "out/iter-companies.jsonl" -Bulk "brreg-enheter.csv" -ExpectedCount 100 -RunId "daily-run"`
-   * Bash: `./run_full_pipeline.sh out/iter-companies.jsonl brreg-enheter.csv 100 daily-run`
+   * PowerShell: `.\run_full_pipeline.ps1 -Organisations "out/entry-companies.jsonl" -Bulk "brreg-enheter.csv" -ExpectedCount 100 -RunId "daily-run"`
+   * Bash: `./run_full_pipeline.sh out/entry-companies.jsonl brreg-enheter.csv 100 daily-run`
 11. **Models, APIs, and Licences Used:**
     * Brønnøysundregistrene Enhetsregisteret & Regnskapsregisteret official bulk and open REST APIs (NLOD - Norwegian Licence for Open Government Data)
     * Free deterministic domain discovery & direct HTTP crawling with robots.txt compliance
@@ -36,7 +36,7 @@ Submit via email to: **`submit@builderr.ai`**
 
 ### Verification Summary
 
-* **Total Envelopes:** 1,000 completed terminal envelopes in `out/terminal-envelopes-1000.jsonl`
+* **Total Envelopes:** 1,000 completed terminal envelopes in `out/full-1000-run-20260921/terminal-envelopes.jsonl` (and mirrored at `out/terminal-envelopes.jsonl`)
 * **Six-State Vocabulary:** 100% compliant (`available`, `not_available`, `blocked`, `not_applicable`, `ambiguous`, `failed`)
 * **Evidence References:** 0 dangling evidence IDs
 * **Test Suite:** 120/120 tests passing in `tests/test_poc.py`
