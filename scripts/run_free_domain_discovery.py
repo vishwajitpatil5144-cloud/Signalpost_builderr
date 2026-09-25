@@ -69,7 +69,7 @@ def _name_tokens(name: str) -> list[str]:
     return [token for token in tokens if token not in LEGAL_AND_GENERIC and len(token) > 1]
 
 
-def candidate_domains(name: str, *, max_candidates: int = 6) -> list[str]:
+def candidate_domains(name: str, *, municipality: str = "", max_candidates: int = 8) -> list[str]:
     """Generate plausible bare domains (no scheme, no TLD) from a legal name."""
     tokens = _name_tokens(name)
     if not tokens:
@@ -80,9 +80,21 @@ def candidate_domains(name: str, *, max_candidates: int = 6) -> list[str]:
     variants.append(joined)
     if hyphenated != joined:
         variants.append(hyphenated)
+
+    # If municipality or location token is part of the name, try stripped variant (e.g. Haagensen Enebakk -> Haagensen)
+    if municipality:
+        muni_tokens = set(_name_tokens(municipality))
+        stripped_tokens = [t for t in tokens if t not in muni_tokens]
+        if stripped_tokens and len(stripped_tokens) < len(tokens):
+            s_joined = "".join(stripped_tokens)
+            variants.append(s_joined)
+            if "-".join(stripped_tokens) != s_joined:
+                variants.append("-".join(stripped_tokens))
+
     # Many small companies register under just the first distinctive word.
     if len(tokens) > 1:
         variants.append(tokens[0])
+
     # De-duplicate while preserving priority order, drop anything too short
     # or too generic to be worth a network request.
     seen: set[str] = set()
@@ -95,9 +107,9 @@ def candidate_domains(name: str, *, max_candidates: int = 6) -> list[str]:
     return ordered[:max_candidates]
 
 
-def build_candidate_urls(name: str) -> list[str]:
+def build_candidate_urls(name: str, *, municipality: str = "") -> list[str]:
     urls: list[str] = []
-    for bare in candidate_domains(name):
+    for bare in candidate_domains(name, municipality=municipality):
         for tld in CANDIDATE_TLDS:
             urls.append(f"https://{bare}{tld}")
     return urls
@@ -145,7 +157,8 @@ def main() -> None:
             continue
 
         name = row.get("name") or ""
-        candidates = build_candidate_urls(name)[: args.max_candidates_per_company]
+        municipality = row.get("municipality") or ""
+        candidates = build_candidate_urls(name, municipality=municipality)[: args.max_candidates_per_company]
         if not candidates:
             counts["no_candidates_generated"] += 1
             row.setdefault("evidence", {})["website_discovery"] = evidence(

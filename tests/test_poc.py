@@ -1405,6 +1405,26 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.assertFalse(assess_social_identity(aon, {"platform": "linkedin", "url": "https://linkedin.com/company/aon"})["publishable"])
         self.assertTrue(assess_social_identity(fish, {"platform": "linkedin", "url": "https://linkedin.com/company/norsk-fiskeeksport"})["publishable"])
 
+    def test_exact_domain_slug_with_substantive_tokens_is_publishable(self):
+        row = {
+            "organisation_number": "928767493",
+            "name": "SULLAND EIENDOM AS",
+            "evidence": {"website": {"status": "available", "value": {
+                "title": "Bærekraftig eiendomsutvikling og forvaltning",
+                "final_url": "https://www.sullandeiendom.no/",
+                "main_text_excerpt": "Sulland Eiendom utvikler, forvalter og drifter eiendommer med fokus på bærekraft.",
+            }}},
+        }
+        assessment = assess_website_identity(row)
+        self.assertTrue(assessment["publishable"])
+        self.assertEqual(assessment["score"], 0.95)
+
+    def test_candidate_domains_strips_municipality_variant(self):
+        from scripts.run_free_domain_discovery import candidate_domains
+        candidates = candidate_domains("HAAGENSEN HOLDING ENEBAKK AS", municipality="ENEBAKK")
+        self.assertIn("haagensen", candidates)
+        self.assertIn("haagensenenebakk", candidates)
+
 
 class VerifiedSiteSeedTests(unittest.TestCase):
     def test_verified_seed_is_applied_and_unknown_org_is_rejected(self):

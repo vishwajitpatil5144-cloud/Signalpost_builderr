@@ -66,10 +66,19 @@ def assess_website_identity(profile: dict[str, Any]) -> dict[str, Any]:
         "find the best information and most relevant links on all topics related to",
     )
     normalized_raw = unicodedata.normalize("NFKD", candidate_text).encode("ascii", "ignore").decode().casefold()
+    core_phrase = " ".join(core)
+    text_phrase = " ".join(_tokens(homepage_candidate_text))
+    contiguous_name_match = bool(core_phrase and core_phrase in text_phrase)
     homepage_token_sets = [set(_tokens(part)) for part in homepage_identity_parts if part]
     exact_homepage_name = bool(core and any(set(core).issubset(tokens) for tokens in homepage_token_sets))
     substantive_homepage = len(str(value.get("main_text_excerpt") or "").strip()) >= 100
     is_business_sports_club = bool(re.search(r"(?:^|\s)B\.?\s*I\.?\s*L\.?(?:\s|$)", str(profile.get("name") or ""), re.I))
+
+    host_clean = (urllib.parse.urlparse(value.get("final_url") or website.get("source_url") or "").hostname or "").lower()
+    host_slug = host_clean.removeprefix("www.").split(".")[0].replace("-", "")
+    core_compact = "".join(core)
+    exact_domain_slug = bool(core_compact and len(core_compact) >= 4 and host_slug == core_compact)
+
     if any(marker in normalized_raw for marker in parked_markers):
         score = 0.1
         reasons.append("captured page is a parked, for-sale, or generic hosting placeholder")
@@ -82,6 +91,9 @@ def assess_website_identity(profile: dict[str, Any]) -> dict[str, Any]:
     elif len(core) >= 2 and exact_homepage_name:
         score = 0.95
         reasons.append("all normalized legal-name tokens appear together in homepage identity evidence")
+    elif exact_domain_slug and (contiguous_name_match or ratio >= 0.75):
+        score = 0.95
+        reasons.append("exact domain slug matches legal name with substantive brand evidence")
     elif len(core) == 1 and exact_homepage_name and substantive_homepage:
         score = 0.95
         reasons.append("single distinctive legal-name token appears in homepage identity evidence with substantive content")
