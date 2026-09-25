@@ -9,6 +9,17 @@
 
 The pipeline is packaged into a unified multi-stage launcher available for both PowerShell and Bash environments.
 
+### General Command (Any Custom Cohort, Path, or Batch Size)
+The launcher accepts custom organisation inputs from any directory (supporting `.jsonl`, `.txt` with one 9-digit orgnr per line, or `.json`), any expected count, and outputs all 6-stage artifacts to your designated output folder:
+* **PowerShell (Windows):**
+  ```powershell
+  .\run_full_pipeline.ps1 -Organisations "<path_to_organisations_file>" -Bulk "brreg-enheter.csv" -ExpectedCount <count> -RunId "<run_id>" -OutDir "<path_to_output_dir>"
+  ```
+* **Bash (Linux / macOS / Git Bash):**
+  ```bash
+  ./run_full_pipeline.sh <path_to_organisations_file> brreg-enheter.csv <count> <run_id> <path_to_output_dir>
+  ```
+
 ### Full 1,000-Company Submission Reproduction
 Reproduces the complete 1,000-company submission dataset from scratch:
 * **PowerShell (Windows):**
