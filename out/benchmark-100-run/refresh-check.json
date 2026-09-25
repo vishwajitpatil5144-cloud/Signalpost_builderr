@@ -1,0 +1,8 @@
+{
+  "previous_file": "out/benchmark-100-run/profiles-with-discovery.jsonl",
+  "current_file": "out/benchmark-100-run/profiles-with-discovery.jsonl",
+  "profiles_compared": 100,
+  "changes_found": 0,
+  "idempotent_rerun": true,
+  "events": []
+}

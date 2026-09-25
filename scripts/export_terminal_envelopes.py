@@ -168,16 +168,30 @@ def build_envelope(
         identity_assessment and not identity_assessment.get("publishable", True)
     )
     if web_status == "available" and looks_unverified:
+        liveness = identity_assessment.get("liveness_status")
+        if liveness == "inactive_domain":
+            reason_text = identity_assessment.get("reasons", ["Parked or under construction"])[0]
+            unverified_note = f"Domain exists but is inactive ({reason_text}); not published as active company website."
+            source_class = "inactive_candidate_domain"
+        elif liveness == "unverified_foreign_domain":
+            unverified_note = "Generic TLD lacks verifiable Norwegian company presence; not published as active company website."
+            source_class = "unverified_foreign_candidate"
+        elif liveness == "ambiguous_acronym":
+            unverified_note = "Domain matches short acronym but belongs to a different registered business; not published as active company website."
+            source_class = "ambiguous_acronym_candidate"
+        else:
+            unverified_note = "Fetched successfully but exact-entity identity verification did not pass."
+            source_class = "unverified_candidate_site"
         claim(
             "official_website",
             web_value.get("final_url") or web_value.get("requested_url"),
             "ambiguous",
             0.3,
             web.get("source") or web_value.get("final_url"),
-            "unverified_candidate_site",
+            source_class,
             web.get("retrievedAt"),
             web.get("hash"),
-            note="Fetched successfully but exact-entity identity verification did not pass.",
+            note=unverified_note,
         )
     elif web_status == "available":
         claim(

@@ -13,6 +13,8 @@ import urllib.robotparser
 from dataclasses import dataclass
 from typing import Any
 
+socket.setdefaulttimeout(15.0)
+
 from bs4 import BeautifulSoup
 import extruct
 import tldextract
@@ -385,9 +387,14 @@ def fetch_website(url: str | None, *, timeout: float = 15.0, max_bytes: int = 2_
         soup = BeautifulSoup(html, "lxml")
         structured = extruct.extract(html, base_url=final_url, syntaxes=["json-ld", "microdata", "opengraph"])
         text = trafilatura.extract(html, url=final_url, include_links=False, include_tables=False, favor_precision=True) or ""
+        if not text:
+            raw_soup_text = soup.get_text(" ", strip=True)
+            if raw_soup_text:
+                text = raw_soup_text
         title = soup.title.get_text(" ", strip=True) if soup.title else ""
         description_tag = soup.select_one('meta[name="description"], meta[property="og:description"]')
         description = str(description_tag.get("content") or "").strip() if description_tag else ""
+        frame_urls = [str(node.get("src") or "").strip() for node in soup.select("frame[src], iframe[src]") if node.get("src")]
         value = {
             "requested_url": normalized,
             "final_url": final_url,
@@ -400,6 +407,7 @@ def fetch_website(url: str | None, *, timeout: float = 15.0, max_bytes: int = 2_
             "structured_organisations": _jsonld_organisations(structured),
             "content_sha256": __import__("hashlib").sha256(raw).hexdigest(),
             "extraction_state": _extraction_state(text, soup),
+            "frame_urls": frame_urls,
         }
         pages = [{"url": final_url, "title": title[:500], "main_text_excerpt": text[:5000], "content_sha256": value["content_sha256"]}]
         social = value["social_links"]

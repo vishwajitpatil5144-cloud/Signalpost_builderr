@@ -32,9 +32,11 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import socket
 import sys
 import time
 import unicodedata
+import urllib.parse
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -140,6 +142,8 @@ def main() -> None:
     parser.add_argument("--promote-verified", action="store_true", help="Copy exact-entity verified sites into canonical website evidence")
     parser.add_argument("--max-requests", type=int, default=1800, help="Hard stop on total outbound requests this connector may issue")
     args = parser.parse_args()
+    import socket
+    socket.setdefaulttimeout(args.timeout)
 
     rows = read_jsonl(Path(args.input))
     counts: Counter[str] = Counter()
@@ -177,6 +181,19 @@ def main() -> None:
         for url in candidates:
             if requests_used >= args.max_requests:
                 break
+            parsed_cand = urllib.parse.urlparse(url)
+            cand_host = parsed_cand.hostname or ""
+            # Fast DNS + Port connect pre-check (1.5s timeout)
+            # Skips non-resolving domains in ~10ms and dead IPs in 1.5s instead of 21-63s Windows SYN retries
+            try:
+                ip = socket.gethostbyname(cand_host)
+                port = parsed_cand.port or (443 if parsed_cand.scheme == "https" else 80)
+                probe_sock = socket.create_connection((ip, port), timeout=1.5)
+                probe_sock.close()
+            except Exception:
+                tried.append({"url": url, "status": "unreachable"})
+                continue
+
             website, web_ops = fetch_website(url, timeout=args.timeout)
             requests_used += web_ops.get("requests", 1)
             time.sleep(args.min_interval)
