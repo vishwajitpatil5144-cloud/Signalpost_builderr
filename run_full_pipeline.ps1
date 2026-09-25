@@ -78,8 +78,12 @@ try {
     uv run python scripts/build_prototype.py `
         --input "$outDir/profiles-with-discovery.jsonl" `
         --external-observations `
+            "$outDir/activity.jsonl" `
+            "$outDir/news.jsonl" `
+            "$outDir/hiring.jsonl" `
             "$outDir/wikidata.jsonl" `
             "$outDir/nominatim.jsonl" `
+            "$outDir/nav.jsonl" `
         --output "$outDir/showcase.html"
 } catch {
     Write-Host "(showcase build skipped/failed -- check scripts/build_prototype.py --help)"

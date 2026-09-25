@@ -76,7 +76,13 @@ uv run python scripts/generate_synthesis.py \
 echo "== [5/6] Browsable showcase site =="
 uv run python scripts/build_prototype.py \
   --input "$OUT_DIR/profiles-with-discovery.jsonl" \
-  --external-observations "$OUT_DIR/wikidata.jsonl" "$OUT_DIR/nominatim.jsonl" \
+  --external-observations \
+    "$OUT_DIR/activity.jsonl" \
+    "$OUT_DIR/news.jsonl" \
+    "$OUT_DIR/hiring.jsonl" \
+    "$OUT_DIR/wikidata.jsonl" \
+    "$OUT_DIR/nominatim.jsonl" \
+    "$OUT_DIR/nav.jsonl" \
   --output "$OUT_DIR/showcase.html" || echo "(showcase build skipped/failed — check scripts/build_prototype.py --help)"
 
 echo "== [6/6] Export contract-compliant terminal envelopes =="

@@ -9,7 +9,14 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-NEWS_PATH = re.compile(r"/(?:news|press|aktuelt|nyheter|artikler|blog)(?:/|$)", re.I)
+NEWS_PATH = re.compile(
+    r"/(?:[^/]*[-_])?(?:news|press|aktuelt|nyheter|artikler|blogg?|pressemeldinger|siste[-_]nytt)(?:[-_][^/]+)?(?:/|$)",
+    re.I,
+)
+NEWS_TITLE = re.compile(
+    r"\b(nyheter|aktuelt|pressemeldinger|press\s+releases?|siste\s+nytt|latest\s+news|v[aå]re\s+artikler)\b",
+    re.I,
+)
 
 
 def observation(profile: dict) -> dict | None:
@@ -21,6 +28,7 @@ def observation(profile: dict) -> dict | None:
     pages = [
         page for page in (value.get("pages") or [])
         if NEWS_PATH.search(urlparse(str(page.get("url") or "")).path)
+        or NEWS_TITLE.search(str(page.get("title") or ""))
     ]
     if not pages:
         return None

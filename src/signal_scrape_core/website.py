@@ -41,9 +41,21 @@ SOCIAL_HOSTS = {
     "youtu.be": "youtube",
     "tiktok.com": "tiktok",
 }
+ATS_HOSTS = {
+    "teamtailor.com": "teamtailor",
+    "recman.no": "recman",
+    "recman.io": "recman",
+    "webcruiter.no": "webcruiter",
+    "webcruiter.com": "webcruiter",
+    "jobbnorge.no": "jobbnorge",
+    "reachmee.com": "reachmee",
+    "easycruit.com": "easycruit",
+    "cvideo.no": "cvideo",
+    "finn.no": "finn_jobb",
+}
 PRIORITY_BUCKETS = (
-    ("career", ("karriere", "careers", "jobb", "jobs", "stilling", "stillinger", "ledige", "work-with-us", "join-us", "vacancies")),
-    ("news", ("nyheter", "aktuelt", "presse", "press", "/news", "artikler")),
+    ("career", ("karriere", "careers", "jobb", "jobs", "stilling", "stillinger", "ledige", "ledig-jobb", "work-with-us", "join-us", "vacancies", "bli-med")),
+    ("news", ("nyheter", "aktuelt", "presse", "press", "/news", "artikler", "siste-nytt", "blogg", "blog")),
     ("identity", ("om-oss", "om_oss", "about", "hvem-er-vi")),
     ("contact", ("kontakt", "contact")),
     ("leadership", ("ledelse", "styret", "/team", "/people", "management")),
@@ -158,6 +170,29 @@ def structured_social_links(value: Any) -> list[dict[str, str]]:
                 walk(child)
 
     walk(value)
+    return sorted(found.values(), key=lambda item: (item["platform"], item["url"]))
+
+
+def _ats_links(base_url: str, soup: BeautifulSoup) -> list[dict[str, str]]:
+    found: dict[str, dict[str, str]] = {}
+    for node in soup.select("a[href]"):
+        href = str(node.get("href") or "").strip()
+        if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+            continue
+        url = urllib.parse.urljoin(base_url, href)
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in {"http", "https"}:
+            continue
+        host = (parsed.hostname or "").lower()
+        matched_platform = None
+        for ats_domain, platform in ATS_HOSTS.items():
+            if host == ats_domain or host.endswith("." + ats_domain):
+                if platform == "finn_jobb" and not parsed.path.startswith(("/jobb", "/job/")):
+                    continue
+                matched_platform = platform
+                break
+        if matched_platform and url not in found:
+            found[url] = {"platform": matched_platform, "url": url}
     return sorted(found.values(), key=lambda item: (item["platform"], item["url"]))
 
 
@@ -361,6 +396,7 @@ def fetch_website(url: str | None, *, timeout: float = 15.0, max_bytes: int = 2_
             "description": description[:2000],
             "main_text_excerpt": text[:5000],
             "social_links": _social_links(final_url, soup),
+            "ats_links": _ats_links(final_url, soup),
             "structured_organisations": _jsonld_organisations(structured),
             "content_sha256": __import__("hashlib").sha256(raw).hexdigest(),
             "extraction_state": _extraction_state(text, soup),
