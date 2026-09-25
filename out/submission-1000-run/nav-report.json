@@ -1,0 +1,8 @@
+{
+  "platform": "job_board",
+  "feed_pages": 4,
+  "items_scanned": 4000,
+  "observations_found": 2,
+  "unique_companies_matched": 1,
+  "requests": 1
+}

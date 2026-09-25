@@ -1405,6 +1405,129 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.assertFalse(assess_social_identity(aon, {"platform": "linkedin", "url": "https://linkedin.com/company/aon"})["publishable"])
         self.assertTrue(assess_social_identity(fish, {"platform": "linkedin", "url": "https://linkedin.com/company/norsk-fiskeeksport"})["publishable"])
 
+    def test_exact_domain_slug_with_substantive_tokens_is_publishable(self):
+        row = {
+            "organisation_number": "928767493",
+            "name": "SULLAND EIENDOM AS",
+            "evidence": {"website": {"status": "available", "value": {
+                "title": "Bærekraftig eiendomsutvikling og forvaltning",
+                "final_url": "https://www.sullandeiendom.no/",
+                "main_text_excerpt": "Sulland Eiendom utvikler, forvalter og drifter eiendommer med fokus på bærekraft.",
+            }}},
+        }
+        assessment = assess_website_identity(row)
+        self.assertTrue(assessment["publishable"])
+        self.assertEqual(assessment["score"], 0.95)
+
+    def test_under_construction_domain_is_quarantined_as_inactive(self):
+        row = {
+            "organisation_number": "919264926",
+            "name": "IDRETTSVEIEN 1 AS",
+            "evidence": {"website": {"status": "available", "value": {
+                "title": "",
+                "final_url": "https://idrettsveien.no/",
+                "main_text_excerpt": "Under construction",
+            }}},
+        }
+        assessment = assess_website_identity(row)
+        self.assertFalse(assessment["publishable"])
+        self.assertEqual(assessment["liveness_status"], "inactive_domain")
+        self.assertIn("Under construction", assessment["reasons"][0])
+
+    def test_parking_frame_and_domain_for_sale_is_quarantined_as_inactive(self):
+        row = {
+            "organisation_number": "969038986",
+            "name": "GYNEKOLOGI AS",
+            "evidence": {"website": {"status": "available", "value": {
+                "title": "www.gynekologi.no",
+                "final_url": "https://www.gynekologi.no/",
+                "main_text_excerpt": "Your browser does not support frames.",
+                "frame_urls": ["https://parkert-su.webit.no/?domene=gynekologi.no"],
+            }}},
+        }
+        assessment = assess_website_identity(row)
+        self.assertFalse(assessment["publishable"])
+        self.assertEqual(assessment["liveness_status"], "inactive_domain")
+
+    def test_domainnameshop_parked_page_is_quarantined_as_inactive(self):
+        row = {
+            "organisation_number": "890691552",
+            "name": "ALUKRA AS",
+            "evidence": {"website": {"status": "available", "value": {
+                "title": "alukra.no is parked",
+                "final_url": "http://alukra.no/",
+                "main_text_excerpt": "alukra.no is registered, but the owner currently does not have an active website here.",
+            }}},
+        }
+        assessment = assess_website_identity(row)
+        self.assertFalse(assessment["publishable"])
+        self.assertEqual(assessment["liveness_status"], "inactive_domain")
+
+    def test_godaddy_parking_and_empty_stub_is_quarantined_as_inactive(self):
+        row = {
+            "organisation_number": "828525492",
+            "name": "FRYYD AS",
+            "evidence": {"website": {"status": "available", "value": {
+                "title": "",
+                "final_url": "https://fryyd.com/",
+                "main_text_excerpt": "",
+            }}},
+        }
+        assessment = assess_website_identity(row)
+        self.assertFalse(assessment["publishable"])
+        self.assertEqual(assessment["liveness_status"], "inactive_domain")
+
+    def test_generic_tld_foreign_domain_without_norwegian_anchor_is_quarantined(self):
+        row = {
+            "organisation_number": "899176952",
+            "name": "LADEST AS",
+            "municipality": "OSLO",
+            "evidence": {"website": {"status": "available", "value": {
+                "title": "Louisiana Destination Imagination - Louisiana Destination Imagination",
+                "final_url": "https://www.ladest.com/",
+                "main_text_excerpt": "Destination Imagination is an educational program where student teams solve open-ended challenges.",
+            }}},
+        }
+        assessment = assess_website_identity(row)
+        self.assertFalse(assessment["publishable"])
+        self.assertEqual(assessment["liveness_status"], "unverified_foreign_domain")
+
+    def test_short_acronym_domain_without_org_or_muni_match_is_quarantined(self):
+        row = {
+            "organisation_number": "992498188",
+            "name": "VTO AS",
+            "municipality": "BERGEN",
+            "evidence": {"website": {"status": "available", "value": {
+                "title": "Profesjonell lastebiltransport i Elverum | Virkestransport Øst AS",
+                "final_url": "https://www.vto.no/",
+                "main_text_excerpt": "Virkestransport Øst AS er et ledende transportfirma i Elverum.",
+            }}},
+        }
+        assessment = assess_website_identity(row)
+        self.assertFalse(assessment["publishable"])
+        self.assertEqual(assessment["liveness_status"], "ambiguous_acronym")
+
+    def test_foreign_domain_with_norwegian_path_is_publishable(self):
+        row = {
+            "organisation_number": "981548280",
+            "name": "ORANGE CYBERDEFENSE NORWAY AS",
+            "evidence": {"website": {"status": "available", "value": {
+                "title": "Norway | Orange Cyberdefense",
+                "final_url": "https://www.orangecyberdefense.com/no/",
+                "main_text_excerpt": "Orange Cyberdefense Norway leverer cybersikkerhetstjenester.",
+            }}},
+        }
+        assessment = assess_website_identity(row)
+        self.assertTrue(assessment["publishable"])
+        self.assertEqual(assessment["liveness_status"], "active")
+
+
+    def test_candidate_domains_strips_municipality_variant(self):
+        from scripts.run_free_domain_discovery import candidate_domains
+        candidates = candidate_domains("HAAGENSEN HOLDING ENEBAKK AS", municipality="ENEBAKK")
+        self.assertIn("haagensen", candidates)
+        self.assertIn("haagensenenebakk", candidates)
+
 
 class VerifiedSiteSeedTests(unittest.TestCase):
     def test_verified_seed_is_applied_and_unknown_org_is_rejected(self):

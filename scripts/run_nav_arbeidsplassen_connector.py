@@ -138,12 +138,16 @@ def match_vacancies(
     """Match feed vacancy items to company profiles with exact identity gating."""
     observations: list[dict[str, Any]] = []
 
-    # Index companies by normalized name
+    # Index companies by normalized name and token sets
     by_norm_name: dict[str, list[dict[str, Any]]] = {}
+    profile_tokens: list[tuple[set[str], dict[str, Any]]] = []
     for p in profiles:
         clean = _clean_name(p.get("name", ""))
         if clean:
             by_norm_name.setdefault(clean, []).append(p)
+            toks = set(clean.split())
+            if len(toks) >= 2:
+                profile_tokens.append((toks, p))
 
     for item in feed_items:
         entry = item.get("_feed_entry", {})
@@ -152,7 +156,15 @@ def match_vacancies(
             continue
 
         clean_b = _clean_name(business_name)
-        matched_profiles = by_norm_name.get(clean_b)
+        matched_profiles = list(by_norm_name.get(clean_b, []))
+
+        # Substantive token subset matching (e.g. 'Orange Cyberdefense' vs 'Orange Cyberdefense Norway AS')
+        b_tokens = set(clean_b.split())
+        if not matched_profiles and len(b_tokens) >= 2:
+            for p_toks, p in profile_tokens:
+                if b_tokens.issubset(p_toks) or p_toks.issubset(b_tokens):
+                    matched_profiles.append(p)
+
         if not matched_profiles:
             continue
 
@@ -220,7 +232,7 @@ def main() -> None:
     parser.add_argument("--profiles", required=True, help="Input profiles JSONL")
     parser.add_argument("--output", required=True, help="Output observations JSONL")
     parser.add_argument("--report", required=True, help="Output execution report JSON")
-    parser.add_argument("--pages", type=int, default=2, help="Number of 1,000-item feed pages to scan (default 2)")
+    parser.add_argument("--pages", type=int, default=4, help="Number of 1,000-item feed pages to scan (default 4)")
     parser.add_argument("--cache-dir", default="out/cache/nav_feed", help="Cache directory for feed items")
     args = parser.parse_args()
 

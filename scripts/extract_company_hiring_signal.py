@@ -15,16 +15,17 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 CAREER_PATH = re.compile(
-    r"/(?:jobb|jobs|karriere|careers|stilling(?:er)?|ledige|work-with-us|join-us|vacancies|rekruttering)(?:/|$)",
+    r"/(?:[^/]*[-_])?(?:jobb|jobs|karriere|careers|stilling(?:er)?|ledig(?:e)?[-_](?:stilling|jobb)|rekruttering|vacancies|work-with-us|join-us|work-at)(?:[-_][^/]+)?(?:/|$)",
     re.I,
 )
 CAREER_TITLE = re.compile(
-    r"\b(karriere|ledige\s+stillinger|jobb\s+hos\s+oss|careers|vacancies|work\s+with\s+us|join\s+our\s+team)\b",
+    r"\b(karriere|ledige?\s+stillinger|ledig\s+jobb|jobb\s+hos\s+oss|jobb\s+med\s+oss|jobbe\s+hos\s+oss|careers?|vacancies|work\s+with\s+us|join\s+(?:our\s+)?team|bli\s+med\s+p[aå]\s+laget)\b",
     re.I,
 )
 HIRING_TERMS = re.compile(
-    r"\b(vi\s+s(?:ø|o)ker|ledige\s+stilling|s(?:ø|o)k\s+n(?:å|a)|we(?:'|’)?re\s+hiring|"
-    r"now\s+hiring|open\s+position|join\s+our\s+team|open\s+role)\b",
+    r"\b(vi\s+s(?:ø|o)ker|ledige?\s+stilling(?:er)?|ledig\s+jobb|s(?:ø|o)k\s+n(?:å|a)|we(?:'|’)?re\s+hiring|"
+    r"now\s+hiring|open\s+positions?|join\s+(?:our\s+)?team|open\s+roles?|bli\s+med\s+p[aå]\s+laget|"
+    r"jobber\s+vi\s+kan\s+tilby|s(?:ø|o)ker\s+etter|søk\s+her)\b",
     re.I,
 )
 
@@ -40,35 +41,64 @@ def observation(profile: dict) -> dict | None:
         if CAREER_PATH.search(urlparse(str(page.get("url") or "")).path)
         or CAREER_TITLE.search(str(page.get("title") or ""))
     ]
-    if not career_pages:
-        return None
-    page = career_pages[0]
-    url = str(page.get("url") or "")
-    digest = str(page.get("content_sha256") or "")
-    if not url.startswith(("http://", "https://")) or len(digest) != 64:
-        return None
-    org = str(profile["organisation_number"])
-    return {
-        "id": "company-hiring-signal-" + hashlib.sha256(f"{org}|{url}".encode()).hexdigest()[:24],
-        "organisation_number": org,
-        "platform": "company_site",
-        "signal_type": "hiring_page_present",
-        "source_url": url,
-        "retrieved_at": website.get("retrieved_at"),
-        "content_sha256": digest,
-        "exact_entity": True,
-        "identity_proof": [{"type": "website_identity_gate", "score": identity.get("score"), "method": identity.get("method")}],
-        "acquisition_mode": "permitted_public_page",
-        "rights_status": "approved",
-        "source_class": "company_site",
-        "evidence_span": str(page.get("title") or "Careers/jobs page")[:1200],
-        "metrics": {
-            "career_page_found": True,
-            "hiring_keyword_detected": bool(HIRING_TERMS.search(str(page.get("main_text_excerpt") or ""))),
-            "interpretation": "Confirms a careers/jobs page exists and, if flagged, contains hiring language. Does not assert a job count.",
-        },
-        "strategy": "company_site_hiring_signal",
-    }
+    if career_pages:
+        page = career_pages[0]
+        url = str(page.get("url") or "")
+        digest = str(page.get("content_sha256") or "")
+        if not url.startswith(("http://", "https://")) or len(digest) != 64:
+            return None
+        org = str(profile["organisation_number"])
+        return {
+            "id": "company-hiring-signal-" + hashlib.sha256(f"{org}|{url}".encode()).hexdigest()[:24],
+            "organisation_number": org,
+            "platform": "company_site",
+            "signal_type": "hiring_page_present",
+            "source_url": url,
+            "retrieved_at": website.get("retrieved_at"),
+            "content_sha256": digest,
+            "exact_entity": True,
+            "identity_proof": [{"type": "website_identity_gate", "score": identity.get("score"), "method": identity.get("method")}],
+            "acquisition_mode": "permitted_public_page",
+            "rights_status": "approved",
+            "source_class": "company_site",
+            "evidence_span": str(page.get("title") or "Careers/jobs page")[:1200],
+            "metrics": {
+                "career_page_found": True,
+                "hiring_keyword_detected": bool(HIRING_TERMS.search(str(page.get("main_text_excerpt") or ""))),
+                "interpretation": "Confirms a careers/jobs page exists and, if flagged, contains hiring language. Does not assert a job count.",
+            },
+            "strategy": "company_site_hiring_signal",
+        }
+
+    ats_links = value.get("ats_links") or []
+    if ats_links:
+        ats = ats_links[0]
+        url = str(ats.get("url") or "")
+        digest = str(ats.get("content_sha256") or hashlib.sha256(url.encode()).hexdigest())
+        org = str(profile["organisation_number"])
+        return {
+            "id": "company-hiring-signal-" + hashlib.sha256(f"{org}|{url}".encode()).hexdigest()[:24],
+            "organisation_number": org,
+            "platform": "company_site",
+            "signal_type": "hiring_page_present",
+            "source_url": url,
+            "retrieved_at": website.get("retrieved_at"),
+            "content_sha256": digest,
+            "exact_entity": True,
+            "identity_proof": [{"type": "website_identity_gate", "score": identity.get("score"), "method": identity.get("method")}],
+            "acquisition_mode": "permitted_public_page",
+            "rights_status": "approved",
+            "source_class": "company_site",
+            "evidence_span": f"Outbound career/ATS recruitment portal ({ats.get('platform') or 'portal'}): {url}"[:1200],
+            "metrics": {
+                "career_page_found": True,
+                "hiring_keyword_detected": True,
+                "interpretation": f"Verified company site links to external recruitment portal ({ats.get('platform', 'ATS')}).",
+            },
+            "strategy": "company_site_ats_portal",
+        }
+
+    return None
 
 
 def main() -> None:

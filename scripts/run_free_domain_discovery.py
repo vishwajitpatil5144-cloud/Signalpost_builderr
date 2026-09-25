@@ -32,9 +32,11 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import socket
 import sys
 import time
 import unicodedata
+import urllib.parse
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -69,7 +71,7 @@ def _name_tokens(name: str) -> list[str]:
     return [token for token in tokens if token not in LEGAL_AND_GENERIC and len(token) > 1]
 
 
-def candidate_domains(name: str, *, max_candidates: int = 6) -> list[str]:
+def candidate_domains(name: str, *, municipality: str = "", max_candidates: int = 8) -> list[str]:
     """Generate plausible bare domains (no scheme, no TLD) from a legal name."""
     tokens = _name_tokens(name)
     if not tokens:
@@ -80,9 +82,21 @@ def candidate_domains(name: str, *, max_candidates: int = 6) -> list[str]:
     variants.append(joined)
     if hyphenated != joined:
         variants.append(hyphenated)
+
+    # If municipality or location token is part of the name, try stripped variant (e.g. Haagensen Enebakk -> Haagensen)
+    if municipality:
+        muni_tokens = set(_name_tokens(municipality))
+        stripped_tokens = [t for t in tokens if t not in muni_tokens]
+        if stripped_tokens and len(stripped_tokens) < len(tokens):
+            s_joined = "".join(stripped_tokens)
+            variants.append(s_joined)
+            if "-".join(stripped_tokens) != s_joined:
+                variants.append("-".join(stripped_tokens))
+
     # Many small companies register under just the first distinctive word.
     if len(tokens) > 1:
         variants.append(tokens[0])
+
     # De-duplicate while preserving priority order, drop anything too short
     # or too generic to be worth a network request.
     seen: set[str] = set()
@@ -95,9 +109,9 @@ def candidate_domains(name: str, *, max_candidates: int = 6) -> list[str]:
     return ordered[:max_candidates]
 
 
-def build_candidate_urls(name: str) -> list[str]:
+def build_candidate_urls(name: str, *, municipality: str = "") -> list[str]:
     urls: list[str] = []
-    for bare in candidate_domains(name):
+    for bare in candidate_domains(name, municipality=municipality):
         for tld in CANDIDATE_TLDS:
             urls.append(f"https://{bare}{tld}")
     return urls
@@ -128,6 +142,8 @@ def main() -> None:
     parser.add_argument("--promote-verified", action="store_true", help="Copy exact-entity verified sites into canonical website evidence")
     parser.add_argument("--max-requests", type=int, default=1800, help="Hard stop on total outbound requests this connector may issue")
     args = parser.parse_args()
+    import socket
+    socket.setdefaulttimeout(args.timeout)
 
     rows = read_jsonl(Path(args.input))
     counts: Counter[str] = Counter()
@@ -145,7 +161,8 @@ def main() -> None:
             continue
 
         name = row.get("name") or ""
-        candidates = build_candidate_urls(name)[: args.max_candidates_per_company]
+        municipality = row.get("municipality") or ""
+        candidates = build_candidate_urls(name, municipality=municipality)[: args.max_candidates_per_company]
         if not candidates:
             counts["no_candidates_generated"] += 1
             row.setdefault("evidence", {})["website_discovery"] = evidence(
@@ -164,6 +181,19 @@ def main() -> None:
         for url in candidates:
             if requests_used >= args.max_requests:
                 break
+            parsed_cand = urllib.parse.urlparse(url)
+            cand_host = parsed_cand.hostname or ""
+            # Fast DNS + Port connect pre-check (1.5s timeout)
+            # Skips non-resolving domains in ~10ms and dead IPs in 1.5s instead of 21-63s Windows SYN retries
+            try:
+                ip = socket.gethostbyname(cand_host)
+                port = parsed_cand.port or (443 if parsed_cand.scheme == "https" else 80)
+                probe_sock = socket.create_connection((ip, port), timeout=1.5)
+                probe_sock.close()
+            except Exception:
+                tried.append({"url": url, "status": "unreachable"})
+                continue
+
             website, web_ops = fetch_website(url, timeout=args.timeout)
             requests_used += web_ops.get("requests", 1)
             time.sleep(args.min_interval)

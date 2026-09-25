@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-09-25T13:28:28.080098Z",
+  "started_at": "2026-09-25T12:29:13.666638Z",
+  "provider": "free_domain_guess (no API key, no search engine, no paid provider)",
+  "input_profiles": 1000,
+  "attempted_profiles": 638,
+  "outbound_requests_used": 1801,
+  "counts": {
+    "registry_or_existing_website_skipped": 71,
+    "abstained_no_match": 541,
+    "verified_sites": 97,
+    "promoted_sites": 97,
+    "candidate_failed_identity_gate": 211,
+    "no_candidates_generated": 3,
+    "stopped_on_budget": 1
+  },
+  "promote_verified_enabled": true,
+  "note": "Every published site passed the same apply_website_identity_gate used by the registry-website path. This connector never treats a reachable domain as evidence by itself."
+}
